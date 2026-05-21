@@ -1,0 +1,276 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  role         String   @default("student") // student, teacher
+  avatar       String?
+  passwordHash String?
+  studentId    String?  // e.g. CSE-331
+  institution  String?
+  bio          String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  materialProgress  MaterialProgress[]
+  quizAttempts      QuizAttempt[]
+  chatSessions      ChatSession[]
+  streak            Streak?
+  earnedBadges      EarnedBadge[]
+  notifications     Notification[]
+  telemetryRecords  TelemetryRecord[]
+  engagementScore   EngagementScore?
+  wellbeingCheckins WellbeingCheckin[]
+  authSessions       AuthSession[]
+}
+
+model AuthSession {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Course {
+  id          String   @id @default(cuid())
+  name        String
+  code        String
+  description String?
+  teacherId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  topics Topic[]
+}
+
+model Topic {
+  id        String   @id @default(cuid())
+  name      String
+  courseId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course    Course     @relation(fields: [courseId], references: [id])
+  materials Material[]
+}
+
+model Material {
+  id            String   @id @default(cuid())
+  title         String
+  topicId       String
+  contentType   String   @default("document") // document, video, slide
+  contentUrl    String?
+  estimatedTime Int      @default(30) // minutes
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  topic     Topic              @relation(fields: [topicId], references: [id])
+  progress  MaterialProgress[]
+}
+
+model MaterialProgress {
+  id               String   @id @default(cuid())
+  studentId        String
+  materialId       String
+  completionStatus String   @default("pending") // pending, in_progress, done
+  timeSpent        Int      @default(0) // seconds
+  lastAccessedAt   DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  student  User     @relation(fields: [studentId], references: [id])
+  material Material @relation(fields: [materialId], references: [id])
+}
+
+model Quiz {
+  id          String   @id @default(cuid())
+  topicId     String
+  title       String
+  difficulty  String   @default("medium") // easy, medium, hard
+  timeLimit   Int      @default(300) // seconds
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+}
+
+model QuizQuestion {
+  id          String @id @default(cuid())
+  quizId      String
+  question    String
+  optionA     String
+  optionB     String
+  optionC     String
+  optionD     String
+  correctKey  String // A, B, C, D
+  explanation String?
+
+  quiz    Quiz          @relation(fields: [quizId], references: [id])
+  answers QuizAnswer[]
+}
+
+model QuizAttempt {
+  id           String   @id @default(cuid())
+  studentId    String
+  quizId       String
+  score        Float    @default(0)
+  totalQuestions Int    @default(0)
+  correctCount Int      @default(0)
+  timeSpent    Int      @default(0) // seconds
+  completedAt  DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  student User           @relation(fields: [studentId], references: [id])
+  quiz    Quiz           @relation(fields: [quizId], references: [id])
+  answers QuizAnswer[]
+}
+
+model QuizAnswer {
+  id              String @id @default(cuid())
+  attemptId       String
+  questionId      String
+  selectedKey     String
+  isCorrect       Boolean @default(false)
+
+  attempt  QuizAttempt  @relation(fields: [attemptId], references: [id])
+  question QuizQuestion @relation(fields: [questionId], references: [id])
+}
+
+model ChatSession {
+  id        String   @id @default(cuid())
+  studentId String
+  courseId  String?
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student  User         @relation(fields: [studentId], references: [id])
+  messages ChatMessage[]
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  role      String   // user, assistant
+  content   String
+  createdAt DateTime @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model Streak {
+  id                 String   @id @default(cuid())
+  studentId          String   @unique
+  currentStreak      Int      @default(0)
+  longestStreak      Int      @default(0)
+  lastActiveDate     DateTime @default(now())
+  totalActiveDays    Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  student User @relation(fields: [studentId], references: [id])
+}
+
+model Badge {
+  id            String @id @default(cuid())
+  name          String
+  description   String
+  icon          String // emoji or icon name
+  category      String // study, quiz, streak, engagement
+  thresholdType String // quiz_score, streak_days, materials_done, engagement_score
+  thresholdValue Int
+  createdAt     DateTime @default(now())
+
+  earnedBy EarnedBadge[]
+}
+
+model EarnedBadge {
+  id        String   @id @default(cuid())
+  studentId String
+  badgeId   String
+  earnedAt  DateTime @default(now())
+
+  student User  @relation(fields: [studentId], references: [id])
+  badge   Badge @relation(fields: [badgeId], references: [id])
+
+  @@unique([studentId, badgeId])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  studentId   String
+  title       String
+  message     String
+  type        String   @default("info") // info, warning, achievement, reminder
+  isRead      Boolean  @default(false)
+  actionUrl   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student User @relation(fields: [studentId], references: [id])
+}
+
+model TelemetryRecord {
+  id               String   @id @default(cuid())
+  studentId        String
+  pageId           String
+  activeSeconds    Int      @default(0)
+  scrollPercentage Float    @default(0)
+  interactionCount Int      @default(0)
+  tabFocused       Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  student User @relation(fields: [studentId], references: [id])
+}
+
+model EngagementScore {
+  id                    String   @id @default(cuid())
+  studentId             String   @unique
+  overallScore          Float    @default(0)
+  studyConsistencyRate  Float    @default(0)
+  avgSessionDuration    Float    @default(0)
+  weeklyActiveHours     Float    @default(0)
+  interactionDensity    Float    @default(0)
+  lastCalculated        DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  student User @relation(fields: [studentId], references: [id])
+}
+
+model WellbeingCheckin {
+  id          String   @id @default(cuid())
+  studentId   String
+  checkinType String   @default("motivational") // motivational, break_reminder, balance_tip
+  title       String
+  content     String
+  isDismissed Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  student User @relation(fields: [studentId], references: [id])
+}
+
+model InterventionRecord {
+  id          String   @id @default(cuid())
+  teacherId   String
+  studentId   String
+  courseId    String?
+  reason      String
+  status      String   @default("draft") // draft, sent, acknowledged
+  message     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
