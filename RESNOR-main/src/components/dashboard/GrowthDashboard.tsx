@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
   Card,
   CardContent,
@@ -47,12 +47,21 @@ import {
   ChevronRight,
   AlertCircle,
   SearchIcon,
+  BrainCircuit,
+  BarChart3Icon,
+  Zap,
+  GraduationCap,
+  Gift,
+  RotateCw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { cn } from '@/lib/utils'
 import { motion, useMotionValue, animate } from 'framer-motion'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 
 // ── Count-Up Hook ──
 function useCountUp(target: number, duration: number = 1200, decimals: number = 0) {
@@ -114,10 +123,11 @@ function SectionHeader({ icon: Icon, title, accentColor = 'border-l-emerald-500'
 }
 
 // ── Stat Card ──
-function StatCard({ title, rawValue, decimals, subtitle, icon: Icon, borderColor, iconColor, hoverGlow, trend, trendValue, sparkline, sparkColor, suffix = '' }: {
+function StatCard({ title, rawValue, decimals, subtitle, icon: Icon, borderColor, iconColor, hoverGlow, trend, trendValue, sparkline, sparkColor, suffix = '', onIconClick }: {
   title: string; rawValue: number; decimals: number; subtitle: string
   icon: React.ComponentType<{ className?: string }>; borderColor: string; iconColor: string; hoverGlow: string
   trend: 'up' | 'down' | 'neutral'; trendValue: string; sparkline: number[]; sparkColor: string; suffix?: string
+  onIconClick?: () => void
 }) {
   const animatedValue = useCountUp(rawValue, 1400, decimals)
   return (
@@ -128,8 +138,67 @@ function StatCard({ title, rawValue, decimals, subtitle, icon: Icon, borderColor
       >
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">{title}</CardTitle>
-          <div className={cn('h-9 w-9 rounded-lg bg-muted/60 flex items-center justify-center', iconColor)}>
-            <Icon className="h-4.5 w-4.5" />
+          <div className="flex items-center gap-2">
+            {onIconClick ? (
+              <div className="relative">
+                <motion.button
+                  type="button"
+                  onClick={onIconClick}
+                  animate={{ scale: [1, 1.2, 0.95, 1.1, 1] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: ['easeInOut', 'easeOut', 'easeInOut', 'easeOut'] }}
+                  whileHover={{ scale: 1.15 }}
+                  whileTap={{ scale: 0.9 }}
+                  className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 cursor-pointer transition-colors duration-200 shadow-lg shadow-amber-500/30"
+                >
+                  <Icon className="h-5 w-5 text-white" />
+                </motion.button>
+                {/* Spark particles */}
+                <motion.div
+                  className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-amber-300"
+                  animate={{
+                    scale: [0, 1.5, 0],
+                    opacity: [0, 1, 0],
+                    x: [0, 8, 14],
+                    y: [0, -8, -14],
+                  }}
+                  transition={{ duration: 1.2, repeat: Infinity, delay: 0.2 }}
+                />
+                <motion.div
+                  className="absolute -bottom-1 -left-1 h-1.5 w-1.5 rounded-full bg-orange-400"
+                  animate={{
+                    scale: [0, 1.5, 0],
+                    opacity: [0, 1, 0],
+                    x: [0, -8, -14],
+                    y: [0, 8, 14],
+                  }}
+                  transition={{ duration: 1.4, repeat: Infinity, delay: 0.6 }}
+                />
+                <motion.div
+                  className="absolute -top-1 -left-1 h-1.5 w-1.5 rounded-full bg-amber-200"
+                  animate={{
+                    scale: [0, 1.2, 0],
+                    opacity: [0, 0.8, 0],
+                    x: [0, -6, -10],
+                    y: [0, -6, -10],
+                  }}
+                  transition={{ duration: 1.6, repeat: Infinity, delay: 1.0 }}
+                />
+                <motion.div
+                  className="absolute -bottom-1 -right-1 h-1.5 w-1.5 rounded-full bg-yellow-300"
+                  animate={{
+                    scale: [0, 1.2, 0],
+                    opacity: [0, 0.8, 0],
+                    x: [0, 6, 10],
+                    y: [0, 6, 10],
+                  }}
+                  transition={{ duration: 1.3, repeat: Infinity, delay: 0.4 }}
+                />
+              </div>
+            ) : (
+              <div className={cn('h-9 w-9 rounded-lg bg-muted/60 flex items-center justify-center', iconColor)}>
+                <Icon className="h-4.5 w-4.5" />
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -163,64 +232,209 @@ function DonutCenterLabel({ percentage }: { percentage: number }) {
 }
 
 // ── Welcome Banner ──
-function WelcomeBanner({ name, materialsToday, bestQuiz, streak }: {
-  name: string; materialsToday: number; bestQuiz: string; streak: number
+function WelcomeBanner({ name, materialsToday, bestQuiz, streak, level, xp }: {
+  name: string; materialsToday: number; bestQuiz: string; streak: number; level?: number; xp?: number
 }) {
   const { setActivePage } = useAppStore()
   const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+  const greeting = `Good to see you, ${name}!`
+  const [displayed, setDisplayed] = useState('')
+  const [done, setDone] = useState(false)
+  useEffect(() => {
+    setDisplayed('')
+    setDone(false)
+    let i = 0
+    const interval = setInterval(() => {
+      setDisplayed(greeting.slice(0, i + 1))
+      i++
+      if (i >= greeting.length) {
+        clearInterval(interval)
+        setDone(true)
+      }
+    }, 45)
+    return () => clearInterval(interval)
+  }, [name])
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-500 to-emerald-600 p-6 md:p-8 text-white shadow-lg shadow-emerald-900/10">
-      <motion.div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/4 blur-2xl" animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0.8, 0.6] }} transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }} />
-      <motion.div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/4 blur-2xl" animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.7, 0.5] }} transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut', delay: 1 }} />
-      <motion.div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-white/5 rounded-full blur-3xl" animate={{ scale: [1, 1.3, 0.9, 1.2, 1], x: [0, 20, -15, 10, 0], y: [0, -10, 15, -8, 0], opacity: [0.3, 0.6, 0.4, 0.5, 0.3] }} transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }} />
-      <div className="absolute top-4 right-8 w-20 h-20 bg-white/5 rounded-2xl rotate-12" />
-      <div className="absolute bottom-6 right-24 w-12 h-12 bg-white/5 rounded-xl -rotate-12" />
-      <div className="absolute inset-0 rounded-2xl bg-white/[0.06] backdrop-blur-[1px] pointer-events-none" />
-      <div className="absolute inset-0 rounded-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.15),inset_0_-1px_0_rgba(0,0,0,0.1)] pointer-events-none" />
+    <motion.div className="relative overflow-hidden rounded-2xl p-6 md:p-7 text-white shadow-lg shadow-emerald-900/20"
+      animate={{ backgroundPosition: ['0% 0%', '50% 50%', '100% 100%', '50% 0%', '0% 0%'] }}
+      style={{
+        backgroundImage: 'linear-gradient(135deg, #0f172a, #1e293b, #064e3b)',
+        backgroundSize: '200% 200%',
+      }}
+      transition={{ duration: 10, repeat: Infinity, ease: 'linear' }}
+    >
+      {/* Animated background orbs */}
+      <motion.div className="absolute -top-20 -right-20 w-80 h-80 bg-emerald-500/15 rounded-full blur-3xl" animate={{ scale: [1, 1.5, 0.9, 1.3, 1], opacity: [0.3, 0.6, 0.2, 0.5, 0.3] }} transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }} />
+      <motion.div className="absolute -bottom-24 -left-12 w-64 h-64 bg-teal-400/12 rounded-full blur-3xl" animate={{ scale: [1, 1.4, 0.8, 1.2, 1], opacity: [0.2, 0.5, 0.1, 0.4, 0.2] }} transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut', delay: 1 }} />
+      <motion.div className="absolute top-1/2 left-1/3 w-32 h-32 bg-emerald-400/8 rounded-full blur-2xl" animate={{ scale: [1, 1.3, 0.9, 1.15, 1], opacity: [0.4, 0.7, 0.2, 0.6, 0.4] }} transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }} />
+      {/* Floating geometric shapes */}
+      <motion.div className="absolute top-5 right-16 w-20 h-20 bg-white/6 rounded-2xl border border-white/10" animate={{ rotate: [12, 30, 5, 20, 12], y: [0, -10, 4, -6, 0] }} transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }} />
+      <motion.div className="absolute bottom-10 right-28 w-12 h-12 bg-white/6 rounded-xl border border-white/10" animate={{ rotate: [-12, -30, -5, -20, -12], y: [0, 8, -4, 6, 0] }} transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut', delay: 0.8 }} />
+      {/* Shimmer line */}
+      <motion.div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" animate={{ x: ['-100%', '100%'] }} transition={{ duration: 2.5, repeat: Infinity, ease: 'linear' }} />
+      {/* Floating particles */}
+      {[...Array(14)].map((_, i) => (
+        <motion.div key={i} className="absolute w-1.5 h-1.5 bg-emerald-300/30 rounded-full"
+          animate={{
+            x: [0, (i % 2 === 0 ? 1 : -1) * (25 + (i % 5) * 15), 0],
+            y: [0, -20 - (i % 4) * 10, 0],
+            opacity: [0, 0.7, 0],
+          }}
+          transition={{ duration: 2 + (i % 4) * 0.5, repeat: Infinity, ease: 'easeInOut', delay: i * 0.3 }}
+          style={{ top: `${5 + i * 6.5}%`, left: `${5 + (i % 7) * 13}%` }}
+        />
+      ))}
+      {/* Subtle grid pattern overlay */}
+      <motion.div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }} animate={{ opacity: [0.02, 0.04, 0.02] }} transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }} />
+      <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-black/10 to-transparent pointer-events-none" />
       <div className="relative z-10">
-        <div className="flex items-center gap-2 mb-2 text-white/80">
-          <Calendar className="w-4 h-4" />
-          <span className="text-sm">{dateStr}</span>
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-2 min-w-0">
+            <div className="flex items-center gap-2 text-white/60">
+              <Calendar className="w-3.5 h-3.5" />
+              <span className="text-xs font-medium tracking-wide">{dateStr}</span>
+            </div>
+            <h2 className="text-2xl md:text-3xl font-bold tracking-tight min-h-[2rem]">
+              {displayed}
+              {!done ? <span className="inline-block w-[2px] h-[1em] bg-emerald-300 ml-0.5 align-middle animate-pulse" /> : null}
+            </h2>
+            <p className="text-white/70 text-sm max-w-lg leading-relaxed">
+              {materialsToday > 0
+                ? `You've knocked out ${materialsToday} material${materialsToday > 1 ? 's' : ''} today with a top quiz score of ${bestQuiz}.`
+                : `Your highest quiz score so far is ${bestQuiz}.`}
+              {' '}You're on a <span className="font-semibold text-emerald-300">{streak}-day streak</span> — keep pushing!
+            </p>
+          </div>
+          {level ? (
+            <div className="hidden sm:flex items-center gap-3 bg-white/8 backdrop-blur-md rounded-xl px-4 py-3 border border-white/10 shrink-0 shadow-sm">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/20 border border-emerald-400/20">
+                <Award className="h-5 w-5 text-emerald-300" />
+              </div>
+              <div>
+                <p className="text-[10px] text-white/60 font-medium leading-tight uppercase tracking-wider">Level {level}</p>
+                <p className="text-sm font-bold leading-tight">{xp} <span className="text-white/50 text-[10px] font-normal">XP</span></p>
+              </div>
+            </div>
+          ) : null}
         </div>
-        <h2 className="text-2xl md:text-3xl font-bold mb-2">Welcome back, {name}! 👋</h2>
-        <p className="text-white/85 text-sm md:text-base mb-6 max-w-lg">
-          {materialsToday > 0
-            ? `You've completed ${materialsToday} material${materialsToday > 1 ? 's' : ''} today with a best quiz score of ${bestQuiz}. `
-            : `Your best quiz score is ${bestQuiz}. `}
-          Keep going — you're on a {streak}-day streak! 🔥
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <Button onClick={() => setActivePage('tutor')} className="bg-white text-emerald-700 hover:bg-white/90 font-semibold shadow-lg shadow-emerald-900/20 transition-all hover:shadow-xl hover:scale-[1.02]">
-            Continue Studying <ArrowRight className="ml-2 h-4 w-4" />
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Button onClick={() => setActivePage('tutor')} className="bg-emerald-400 text-slate-900 hover:bg-emerald-300 font-bold shadow-lg shadow-emerald-900/30 transition-all hover:shadow-xl hover:scale-[1.02] h-9 text-sm px-5">
+            Continue Studying <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
           </Button>
-          <Button variant="outline" onClick={() => setActivePage('digital-twin')} className="bg-white/15 border-white/30 text-white hover:bg-white/25 hover:text-white backdrop-blur-sm transition-all hover:scale-[1.02]">
-            <Sparkles className="mr-2 h-4 w-4" /> View Recommendations
+          <Button variant="outline" onClick={() => setActivePage('digital-twin')} className="bg-white/8 border-white/20 text-white hover:bg-white/15 hover:text-white backdrop-blur-sm transition-all hover:scale-[1.02] h-9 text-sm px-5">
+            <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Recommendations
           </Button>
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }
 
 // ── Weekly Goals Section ──
-function WeeklyGoalsSection({ goals }: { goals: { id: string; label: string; current: number; target: number; icon: React.ComponentType<{ className?: string }>; color: string; progressColor: string; textColor: string }[] }) {
+function WeeklyGoalsSection({ goals, goalsLoading, xpReward, xpAwarded, onRegenerate }: { goals: { id: string; label: string; current: number; target: number; icon: React.ComponentType<{ className?: string }>; color: string; progressColor: string; textColor: string; description?: string; unit?: string }[]; goalsLoading?: boolean; xpReward?: number; xpAwarded?: boolean; onRegenerate?: () => void }) {
   const completed = goals.filter(g => g.current >= g.target).length
+  const allDone = completed >= goals.length
   const overall = Math.round(goals.reduce((a, g) => a + Math.min(g.current / g.target, 1), 0) / goals.length * 100)
   return (
     <Card className="overflow-hidden transition-shadow duration-300 hover:shadow-md">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-100 dark:bg-amber-950/60">
-              <Target className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-            </div>
-            <div>
-              <CardTitle className="text-base">This Week's Goals</CardTitle>
-              <CardDescription className="text-xs mt-0.5">{completed} of {goals.length} completed</CardDescription>
+        {goalsLoading ? (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-100 dark:bg-amber-950/60">
+                <Target className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base">This Week's Goals</CardTitle>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                </div>
+                <CardDescription className="text-xs mt-0.5">AI is generating your personalized goals...</CardDescription>
+              </div>
             </div>
           </div>
-          <Badge variant="secondary" className="text-xs font-medium">{overall}% overall</Badge>
-        </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <HoverCard openDelay={150} closeDelay={100}>
+              <HoverCardTrigger asChild>
+                <button type="button" className="text-left">
+                  <div className="flex items-center gap-2.5 group">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/50 group-hover:bg-amber-200 dark:group-hover:bg-amber-800/50 group-hover:scale-105 transition-all duration-300">
+                      <Target className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <CardTitle className="text-base group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors duration-200">This Week's Goals</CardTitle>
+                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-muted border border-border/60 opacity-80 group-hover:opacity-100 transition-all duration-300">
+                          <Sparkles className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-[9px] font-semibold text-muted-foreground tracking-wide">AI</span>
+                        </div>
+                      </div>
+                      <CardDescription className="text-xs mt-0.5 group-hover:text-amber-600/60 dark:group-hover:text-amber-400/60 transition-colors duration-200">
+                        {completed} of {goals.length} completed · <span className="text-amber-500 font-medium">AI-powered</span>
+                      </CardDescription>
+                    </div>
+                  </div>
+                </button>
+              </HoverCardTrigger>
+              <HoverCardContent side="top" align="start" className="w-72 p-0 overflow-hidden rounded-xl border shadow-md">
+              <div className="bg-card p-3 border-b">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/50">
+                    <BrainCircuit className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <p className="text-xs font-semibold">Smart Goals — Powered by AI</p>
+                </div>
+              </div>
+              <div className="p-3 space-y-2.5">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Personalized goals generated from your performance data:
+                </p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[
+                    { icon: BookOpen, label: 'Materials', color: 'text-emerald-500' },
+                    { icon: Target, label: 'Quiz accuracy', color: 'text-teal-500' },
+                    { icon: Flame, label: 'Study streak', color: 'text-rose-500' },
+                    { icon: Timer, label: 'Study time', color: 'text-amber-500' },
+                    { icon: GraduationCap, label: 'Strong topics', color: 'text-sky-500' },
+                    { icon: BarChart3Icon, label: 'Weak topics', color: 'text-orange-500' },
+                  ].map(({ icon: Icon, label, color }) => (
+                    <div key={label} className="flex items-center gap-1.5 px-2 py-1">
+                      <Icon className={cn("h-3 w-3", color)} />
+                      <span className="text-[10px] text-muted-foreground/80">{label}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1.5 pt-2 border-t mt-1">
+                  <Zap className="h-3 w-3 text-amber-500" />
+                  <p className="text-[10px] text-muted-foreground/60">Targets adapt to your performance — challenging, achievable</p>
+                </div>
+              </div>
+            </HoverCardContent>
+          </HoverCard>
+          <div className="flex items-center gap-2 shrink-0">
+            {xpReward && !xpAwarded && !allDone && (
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200/50 dark:border-amber-800/30">
+                <Gift className="h-3 w-3 text-amber-500" />
+                <span className="text-[9px] font-semibold text-amber-600 dark:text-amber-400">+{xpReward} XP</span>
+              </div>
+            )}
+            {xpAwarded && (
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-800/30">
+                <CheckCircle className="h-3 w-3 text-emerald-500" />
+                <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">+{xpReward} XP</span>
+              </div>
+            )}
+            <Badge variant="secondary" className="text-xs font-medium bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border-amber-200/50 dark:border-amber-800/30">{overall}%</Badge>
+            {onRegenerate && (
+              <button type="button" onClick={onRegenerate} title="Regenerate goals with AI"
+                className="flex h-6 w-6 items-center justify-center rounded-lg bg-muted/60 hover:bg-muted transition-colors">
+                <RotateCw className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+              </button>
+            )}
+          </div>
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -230,15 +444,20 @@ function WeeklyGoalsSection({ goals }: { goals: { id: string; label: string; cur
             const GoalIcon = goal.icon
             return (
               <motion.div key={goal.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.35, delay: 0.2 + index * 0.08 }}
-                className={cn('flex items-center gap-3 rounded-lg p-2.5 transition-colors', isComplete ? 'bg-emerald-50/80 dark:bg-emerald-950/20' : 'bg-muted/40 hover:bg-muted/60')}>
+                className={cn('flex items-start gap-3 rounded-lg p-2.5 transition-colors', isComplete ? 'bg-emerald-50/80 dark:bg-emerald-950/20' : 'bg-muted/40 hover:bg-muted/60')}>
                 <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', isComplete ? 'bg-emerald-500 text-white' : cn('bg-muted', goal.textColor))}>
                   {isComplete ? <CheckCircle className="h-4 w-4" /> : <GoalIcon className="h-4 w-4" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="flex items-center justify-between gap-2 mb-0.5">
                     <p className={cn('text-xs font-medium truncate', isComplete && 'text-emerald-700 dark:text-emerald-300')}>{goal.label}</p>
-                    <span className={cn('text-xs font-semibold tabular-nums shrink-0', isComplete ? 'text-emerald-600 dark:text-emerald-400' : goal.textColor)}>{goal.current}/{goal.target}</span>
+                    <span className={cn('text-xs font-semibold tabular-nums shrink-0', isComplete ? 'text-emerald-600 dark:text-emerald-400' : goal.textColor)}>
+                      {goal.current}/{goal.target}{goal.unit ? goal.unit : ''}
+                    </span>
                   </div>
+                  {goal.description && (
+                    <p className="text-[10px] text-muted-foreground/70 mb-1.5 leading-tight">{goal.description}</p>
+                  )}
                   <div className="flex items-center gap-2">
                     <Progress value={pct} className={cn('h-1.5 flex-1', goal.progressColor)} />
                     <span className="text-[10px] text-muted-foreground tabular-nums w-8 text-right">{pct}%</span>
@@ -259,6 +478,13 @@ export default function GrowthDashboard() {
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [aiGoals, setAiGoals] = useState<any[] | null>(null)
+  const [goalsLoading, setGoalsLoading] = useState(false)
+  const [xpAwarded, setXpAwarded] = useState(false)
+  const xpReward = 500
+  const [weakAnalysis, setWeakAnalysis] = useState<any>(null)
+  const [weakLoading, setWeakLoading] = useState(false)
+  const [weakDialogOpen, setWeakDialogOpen] = useState(false)
 
   useEffect(() => {
     if (!authUser?.id) return
@@ -271,6 +497,85 @@ export default function GrowthDashboard() {
       })
       .catch(() => setError('Failed to load dashboard data'))
       .finally(() => setLoading(false))
+  }, [authUser?.id])
+
+  // Fetch AI-generated smart goals
+  useEffect(() => {
+    if (!authUser?.id || !data) return
+    setGoalsLoading(true)
+    fetch('/api/dashboard/ai-goals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id: authUser.id }),
+    })
+      .then(r => r.json())
+      .then(res => {
+        if (res.goals) setAiGoals(res.goals)
+      })
+      .catch(() => {})
+      .finally(() => setGoalsLoading(false))
+  }, [authUser?.id, data])
+
+  // Auto-award XP when all goals completed
+  useEffect(() => {
+    if (!authUser?.id || xpAwarded || !aiGoals || aiGoals.length !== 4) return
+    const allDone = aiGoals.every((g: any) => g.current >= g.target)
+    if (!allDone) return
+    setXpAwarded(true)
+    fetch('/api/gamification/award-xp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id: authUser.id, amount: xpReward }),
+    })
+      .then(r => r.json())
+      .then(res => {
+        if (res.levelUp) {
+          toast(`Level Up! You're now level ${res.level}`, {
+            icon: '🎉',
+            duration: 5000,
+          })
+        }
+        toast(`+${xpReward} XP earned for completing all weekly goals!`, {
+          icon: '🏆',
+          duration: 4000,
+        })
+        window.dispatchEvent(new Event('xp-updated'))
+      })
+      .catch(() => {})
+  }, [authUser?.id, aiGoals, xpAwarded])
+
+  const handleAnalyzeWeakTopic = useCallback(() => {
+    if (!authUser?.id || !data?.topicScores) return
+    setWeakDialogOpen(true)
+    if (weakAnalysis) return
+    setWeakLoading(true)
+    fetch('/api/dashboard/ai-weak-topic', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id: authUser.id }),
+    })
+      .then(r => r.json())
+      .then(res => setWeakAnalysis(res))
+      .catch(() => setWeakAnalysis({ analysis: { rootCause: 'Failed to analyze. Try again later.', strategy: '', focusAreas: [] } }))
+      .finally(() => setWeakLoading(false))
+  }, [authUser?.id, data, weakAnalysis])
+
+  const handleRegenerateGoals = useCallback(() => {
+    if (!authUser?.id) return
+    setGoalsLoading(true)
+    setXpAwarded(false)
+    setAiGoals(null)
+    fetch('/api/dashboard/ai-goals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id: authUser.id }),
+    })
+      .then(r => r.json())
+      .then(res => {
+        if (res.goals) setAiGoals(res.goals)
+      })
+      .catch(() => {})
+      .finally(() => setGoalsLoading(false))
   }, [authUser?.id])
 
   // Quiz search — flatten all attempts across all topics
@@ -304,6 +609,44 @@ export default function GrowthDashboard() {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // AI-Generated Smart Goals (must be before early returns — Rules of Hooks)
+  const goalIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+    target: Target, book: BookOpen, brain: Award, clock: Timer,
+    flame: Flame, award: Award, star: Award, zap: Target,
+  }
+  const goalColorMap = [
+    { color: 'bg-emerald-500', progressColor: '[&>div]:bg-emerald-500', textColor: 'text-emerald-600 dark:text-emerald-400', borderColor: 'border-l-emerald-500' },
+    { color: 'bg-teal-500', progressColor: '[&>div]:bg-teal-500', textColor: 'text-teal-600 dark:text-teal-400', borderColor: 'border-l-teal-500' },
+    { color: 'bg-amber-500', progressColor: '[&>div]:bg-amber-500', textColor: 'text-amber-600 dark:text-amber-400', borderColor: 'border-l-amber-500' },
+    { color: 'bg-rose-500', progressColor: '[&>div]:bg-rose-500', textColor: 'text-rose-600 dark:text-rose-400', borderColor: 'border-l-rose-500' },
+  ]
+  const goals = useMemo(() => {
+    const raw = aiGoals || []
+    if (raw.length === 4) {
+      return raw.map((g: any, i: number) => ({
+        id: g.id || `goal_${i}`,
+        label: g.label,
+        current: g.current,
+        target: g.target,
+        icon: goalIconMap[g.icon] || Target,
+        description: g.description || '',
+        unit: g.unit || '',
+        ...goalColorMap[i % 4],
+      }))
+    }
+    const d = data
+    const mp_ = d?.materialProgress || { total: 0, done: 0, inProgress: 0, pending: 0 }
+    const streak_ = d?.streak || { current: 0, longest: 0, totalDays: 0 }
+    const hsqc = d?.highScoreQuizCount || 0
+    const tt = d?.totalTimeMinutes || 0
+    return [
+      { id: 'materials', label: 'Complete materials', current: mp_.done, target: Math.max(mp_.total, 10), icon: BookOpen, description: '', unit: '', ...goalColorMap[0] },
+      { id: 'quizzes', label: 'Score 80%+ on quizzes', current: hsqc, target: Math.max(d?.totalQuizAttempts || 10, 10), icon: Award, description: '', unit: '', ...goalColorMap[1] },
+      { id: 'study-hours', label: `Study ${Math.max(Math.round(tt / 60 * 1.3), 10)}+ hours`, current: Math.round(tt / 60 * 10) / 10, target: Math.max(Math.round(tt / 60 * 1.3), 10), icon: Timer, description: '', unit: '', ...goalColorMap[2] },
+      { id: 'streak', label: 'Maintain daily streak', current: streak_.current, target: Math.max(streak_.longest || 7, 7), icon: Flame, description: '', unit: '', ...goalColorMap[3] },
+    ]
+  }, [aiGoals, data])
 
   if (loading) {
     return (
@@ -353,31 +696,23 @@ export default function GrowthDashboard() {
     ? `${Math.round(weakestTopic.scores[weakestTopic.scores.length - 1])}%`
     : ''
 
-  // Weekly goals
-  const goals = [
-    { id: 'materials', label: 'Complete 10 materials', current: mp.done, target: Math.max(mp.total, 10), icon: BookOpen, color: 'bg-emerald-500', progressColor: '[&>div]:bg-emerald-500', textColor: 'text-emerald-600 dark:text-emerald-400' },
-    { id: 'quizzes', label: 'Score 80%+ on quizzes', current: highScoreQuizCount, target: Math.max(data.totalQuizAttempts || 10, 10), icon: Award, color: 'bg-teal-500', progressColor: '[&>div]:bg-teal-500', textColor: 'text-teal-600 dark:text-teal-400' },
-    { id: 'study-hours', label: 'Study 20+ hours', current: Math.round(totalTime / 60 * 10) / 10, target: 20, icon: Timer, color: 'bg-amber-500', progressColor: '[&>div]:bg-amber-500', textColor: 'text-amber-600 dark:text-amber-400' },
-    { id: 'streak', label: 'Maintain daily streak', current: streak.current, target: Math.max(streak.longest || 7, 7), icon: Flame, color: 'bg-rose-500', progressColor: '[&>div]:bg-rose-500', textColor: 'text-rose-600 dark:text-rose-400' },
-  ]
-
   // Stat cards
   const statCards = [
     { title: 'Total Materials', rawValue: mp.total, decimals: 0, subtitle: `${mp.done} done · ${mp.pending} pending`, icon: BookOpen, borderColor: 'border-l-emerald-500', iconColor: 'text-emerald-500', hoverGlow: 'oklch(0.646 0.222 41.116)', trend: 'up' as const, trendValue: `${mp.total > 0 ? Math.round(mp.done / mp.total * 100) : 0}%`, sparkline: [mp.total - mp.pending - mp.inProgress, mp.done + mp.inProgress, mp.total], sparkColor: 'oklch(0.646 0.222 41.116)' },
     { title: 'Study Time', rawValue: totalTime, decimals: 0, subtitle: `${data.weeklyActivity?.reduce((a: number, d: any) => a + d.hours, 0).toFixed(1) || 0}h this week`, icon: Clock, borderColor: 'border-l-amber-500', iconColor: 'text-amber-500', hoverGlow: 'oklch(0.769 0.188 70.08)', trend: 'up' as const, trendValue: `${totalTime > 0 ? '+' + Math.round(totalTime / 60 * 10) / 10 + 'h' : '0h'}`, sparkline: data.weeklyActivity?.map((d: any) => d.hours) || [0], sparkColor: 'oklch(0.769 0.188 70.08)', suffix: 'm' },
     { title: 'Quiz Average', rawValue: avgScore, decimals: 1, subtitle: `Across ${data.totalQuizAttempts || 0} quizzes`, icon: Target, borderColor: 'border-l-teal-500', iconColor: 'text-teal-500', hoverGlow: 'oklch(0.6 0.118 184.704)', trend: 'up' as const, trendValue: avgScore > 0 ? `+${avgScore > 50 ? Math.round(avgScore / 5) : avgScore}%` : '0%', sparkline: data.quizAttempts?.map((a: any) => a.score).reverse() || [0], sparkColor: 'oklch(0.6 0.118 184.704)', suffix: '%' },
-    { title: 'Weakest Topic', rawValue: weakestTopic ? Math.round(weakestTopic.avg) : 0, decimals: 0, subtitle: weakestTopic ? `${weakestTopic.name} · last: ${Math.round(weakestTopic.scores[weakestTopic.scores.length - 1])}%` : 'No data', icon: AlertCircle, borderColor: 'border-l-orange-500', iconColor: 'text-orange-500', hoverGlow: 'oklch(0.6 0.2 65)', trend: weakestTrend, trendValue: weakestTrendVal, sparkline: weakestTopic?.scores.slice(-5) || [0], sparkColor: 'oklch(0.6 0.2 65)', suffix: '%' },
+    { title: 'Weakest Topic', rawValue: weakestTopic ? Math.round(weakestTopic.avg) : 0, decimals: 0, subtitle: weakestTopic ? `${weakestTopic.name} · last: ${Math.round(weakestTopic.scores[weakestTopic.scores.length - 1])}%` : 'No data', icon: BrainCircuit, borderColor: 'border-l-orange-500', iconColor: 'text-orange-500', hoverGlow: 'oklch(0.6 0.2 65)', trend: weakestTrend, trendValue: weakestTrendVal, sparkline: weakestTopic?.scores.slice(-5) || [0], sparkColor: 'oklch(0.6 0.2 65)', suffix: '%', onIconClick: handleAnalyzeWeakTopic },
   ]
 
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }}>
-        <WelcomeBanner name={authUser?.name || 'Student'} materialsToday={data.materialsToday || 0} bestQuiz={`${bestQuiz}%`} streak={streak.current} />
+        <WelcomeBanner name={authUser?.name || 'Student'} materialsToday={data.materialsToday || 0} bestQuiz={`${bestQuiz}%`} streak={streak.current} level={data.progress?.level} xp={data.progress?.xp} />
       </motion.div>
 
       {/* Weekly Goals */}
-      <WeeklyGoalsSection goals={goals} />
+      <WeeklyGoalsSection goals={goals} goalsLoading={goalsLoading} xpReward={xpReward} xpAwarded={xpAwarded} onRegenerate={handleRegenerateGoals} />
 
       {/* Section: Performance Overview */}
       <SectionHeader icon={BarChart3} title="Performance Overview" accentColor="border-l-emerald-500" iconColor="text-emerald-600 dark:text-emerald-400" />
@@ -691,6 +1026,105 @@ export default function GrowthDashboard() {
           </motion.div>
         </div>
       </div>
+      {/* Weak Topic AI Analysis Dialog */}
+      <Dialog open={weakDialogOpen} onOpenChange={setWeakDialogOpen}>
+        <DialogContent className="sm:max-w-lg rounded-2xl p-0 overflow-hidden gap-0 shadow-2xl border-0">
+          <div className="relative bg-card px-5 pt-5 pb-0">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/40 shadow-sm">
+                <BrainCircuit className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="flex-1">
+                <DialogTitle className="text-base font-bold">AI Topic Analysis</DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  {weakAnalysis ? weakAnalysis.topic : 'Analyzing...'}
+                </DialogDescription>
+              </div>
+              {weakAnalysis && (
+                <div className={cn(
+                  'px-3 py-1 rounded-full text-[11px] font-semibold border',
+                  weakAnalysis.analysis?.confidence === 'struggling' ? 'bg-red-50 text-red-600 border-red-200 dark:bg-red-950/20 dark:text-red-400 dark:border-red-800/30' :
+                  weakAnalysis.analysis?.confidence === 'improving' ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800/30' :
+                  'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-800/30'
+                )}>
+                  {weakAnalysis.analysis?.confidence === 'struggling' ? 'Needs Work' :
+                   weakAnalysis.analysis?.confidence === 'improving' ? 'Improving' : 'Needs Consistency'}
+                </div>
+              )}
+            </div>
+            <div className="absolute bottom-0 left-5 right-5 h-px bg-border" />
+          </div>
+          <div className="p-5">
+            {weakLoading ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <Loader2 className="h-6 w-6 animate-spin text-orange-500" />
+                <p className="text-sm text-muted-foreground">Analyzing your weakest topic...</p>
+              </div>
+            ) : weakAnalysis ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between bg-muted/40 rounded-xl px-4 py-2.5">
+                  <span className="text-sm font-medium">Average Score</span>
+                  <span className={cn(
+                    'text-lg font-bold tabular-nums',
+                    weakAnalysis.avgScore >= 60 ? 'text-emerald-600' : 'text-red-600'
+                  )}>{weakAnalysis.avgScore}%</span>
+                </div>
+                <div className="bg-orange-50/60 dark:bg-orange-950/10 rounded-xl overflow-hidden">
+                  <div className="flex items-center gap-2.5 px-4 py-2.5">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/40">
+                      <AlertCircle className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <span className="text-xs font-bold text-orange-700 dark:text-orange-300 uppercase tracking-wider">Root Cause</span>
+                  </div>
+                  <div className="px-4 pb-3 pt-0">
+                    <p className="text-sm text-foreground/85 leading-relaxed">{weakAnalysis.analysis?.rootCause}</p>
+                  </div>
+                </div>
+                <div className="bg-sky-50/60 dark:bg-sky-950/10 rounded-xl overflow-hidden">
+                  <div className="flex items-center gap-2.5 px-4 py-2.5">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/40">
+                      <Target className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+                    </div>
+                    <span className="text-xs font-bold text-sky-700 dark:text-sky-300 uppercase tracking-wider">Strategy</span>
+                  </div>
+                  <div className="px-4 pb-3 pt-0">
+                    <p className="text-sm text-foreground/85 leading-relaxed">{weakAnalysis.analysis?.strategy}</p>
+                  </div>
+                </div>
+                <div className="bg-emerald-50/60 dark:bg-emerald-950/10 rounded-xl overflow-hidden">
+                  <div className="flex items-center gap-2.5 px-4 py-2.5">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/40">
+                      <BookOpen className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">Focus Areas</span>
+                  </div>
+                  <div className="px-4 pb-3 pt-0">
+                    <div className="flex flex-wrap gap-2">
+                      {weakAnalysis.analysis?.focusAreas?.map((area: string, i: number) => (
+                        <div key={i} className="px-3 py-1.5 rounded-lg bg-emerald-100/70 dark:bg-emerald-900/30 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                          {area}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5 bg-amber-50/50 dark:bg-amber-950/10 rounded-xl px-4 py-2.5">
+                  <Zap className="h-4 w-4 text-amber-500 shrink-0" />
+                  <span className="text-sm text-muted-foreground">
+                    <strong className="text-foreground/80">Estimated effort:</strong> {weakAnalysis.analysis?.estimatedPracticeNeeded}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 gap-2 text-muted-foreground">
+                <BrainCircuit className="h-8 w-8 opacity-30" />
+                <p className="text-sm">Click the AI icon on the Weakest Topic card to analyze</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
+
