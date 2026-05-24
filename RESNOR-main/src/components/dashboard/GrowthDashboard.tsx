@@ -348,7 +348,7 @@ function WeeklyGoalsSection({ goals, goalsLoading, xpReward, xpAwarded, onRegene
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <CardTitle className="text-base">This Week's Goals</CardTitle>
+                  <CardTitle className="text-base">Weekly Goals</CardTitle>
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                 </div>
                 <CardDescription className="text-xs mt-0.5">AI is generating your personalized goals...</CardDescription>
@@ -366,7 +366,7 @@ function WeeklyGoalsSection({ goals, goalsLoading, xpReward, xpAwarded, onRegene
                     </div>
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <CardTitle className="text-base group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors duration-200">This Week's Goals</CardTitle>
+                        <CardTitle className="text-base group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors duration-200">Weekly Goals</CardTitle>
                         <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-muted border border-border/60 opacity-80 group-hover:opacity-100 transition-all duration-300">
                           <Sparkles className="h-3 w-3 text-muted-foreground" />
                           <span className="text-[9px] font-semibold text-muted-foreground tracking-wide">AI</span>
