@@ -768,7 +768,8 @@ export default function GrowthDashboard() {
 
       {/* Section: Performance Overview */}
       <div className="flex items-center gap-2">
-        <SectionHeader icon={BarChart3} title="Performance Overview" accentColor="border-l-emerald-500" iconColor="text-emerald-600 dark:text-emerald-400" />
+        <SectionHeader icon={BarChart3} title="Performance Overview" 
+accentColor="border-l-emerald-500" iconColor="text-emerald-600 dark:text-emerald-400" />
         <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/30 border border-orange-200/50 dark:border-orange-800/30">
           <Sparkles className="h-3 w-3 text-orange-500" />
           <span className="text-[9px] font-semibold text-orange-600 dark:text-orange-400 tracking-wide">AI</span>
