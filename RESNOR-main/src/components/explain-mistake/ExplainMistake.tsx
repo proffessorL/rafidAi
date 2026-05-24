@@ -543,7 +543,7 @@ export default function ExplainMistake() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Explain My Mistake</h1>
         <p className="text-muted-foreground">
-          Review your quiz attempts and understand where things went wrong — auto-deploy test.
+          Review your quiz attempts and understand where things went wrong.
         </p>
       </div>
 
