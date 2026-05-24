@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAuthStore } from '@/stores/auth'
+import { useAppStore } from '@/stores/app'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LineChart,
@@ -256,6 +257,19 @@ export default function QuizGenerator() {
   const [customTopic, setCustomTopic] = useState('')
   const [quizId, setQuizId] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
+
+  // Auto-select topic from dashboard insight click
+  useEffect(() => {
+    const store = useAppStore.getState()
+    const { preselectedQuizTopic, preselectedQuizTopicTitle, setPreselectedQuizTopic, setPreselectedQuizTopicTitle } = store
+    if (preselectedQuizTopic) {
+      setSelectedTopics([preselectedQuizTopic])
+      if (preselectedQuizTopicTitle) setCustomTopic(preselectedQuizTopicTitle)
+      setPreselectedQuizTopic(null)
+      setPreselectedQuizTopicTitle(null)
+    }
+  }, [])
+
   const [historyAttempts, setHistoryAttempts] = useState<any[]>([])
   const [viewingAttempt, setViewingAttempt] = useState<any | null>(null)
   const [showAllHistory, setShowAllHistory] = useState(false)
@@ -470,36 +484,28 @@ export default function QuizGenerator() {
 
   const viewHistoryAttempt = useCallback((att: any) => {
     const optKeys = ['A', 'B', 'C', 'D']
-    const quizResults: QuizResult[] = (att.answers || []).map((ans: any) => {
+    const questions = (att.answers || []).map((ans: any, idx: number) => {
       const opts = [ans.question.optionA, ans.question.optionB, ans.question.optionC, ans.question.optionD]
-      const selectedIdx = ans.selectedKey ? optKeys.indexOf(ans.selectedKey) : null
       return {
-        questionId: ans.question.id,
-        selectedIndex: selectedIdx,
-        isCorrect: ans.isCorrect,
-        topic: att.quiz?.title || 'Quiz',
-        question: ans.question.question,
-        userAnswer: selectedIdx !== null ? opts[selectedIdx] : null,
+        id: idx + 1,
+        text: ans.question.question,
+        options: opts,
+        studentAnswer: ans.selectedKey ? opts[optKeys.indexOf(ans.selectedKey)] : 'Unanswered',
         correctAnswer: opts[optKeys.indexOf(ans.question.correctKey)],
-        explanation: ans.question.explanation || '',
+        isCorrect: ans.isCorrect,
+        mistakeType: undefined as string | undefined,
       }
     })
-    setAttemptId(att.id)
-    setResults(quizResults)
-    setShowReview(true)
-    setStep('results')
-
-    // Fetch AI explanations for this past attempt
-    setLoadingAI(true)
-    fetch(`/api/quiz/explain-mistake?attempt_id=${att.id}`)
-      .then((res) => { if (!res.ok) throw new Error(); return res.json() })
-      .then((data) => {
-        const explMap: Record<string, any> = {}
-        data.explanations?.forEach((e: any) => { explMap[e.questionId] = e })
-        setAiExplanations((prev) => ({ ...prev, [att.id]: explMap }))
-      })
-      .catch(() => setAiExplanations((prev) => ({ ...prev, [att.id]: {} })))
-      .finally(() => setLoadingAI(false))
+    const store = useAppStore.getState()
+    store.setReviewAttemptData({
+      id: att.id,
+      label: att.quiz?.title || 'Quiz Attempt',
+      date: new Date(att.completedAt || att.createdAt).toLocaleDateString(),
+      score: att.totalQuestions > 0 ? Math.round((att.correctCount / att.totalQuestions) * 100) : 0,
+      totalQuestions: att.totalQuestions,
+      questions,
+    })
+    store.setActivePage('explain-mistake')
   }, [])
 
   const handleRetake = () => {

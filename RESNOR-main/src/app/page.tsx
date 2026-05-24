@@ -53,6 +53,7 @@ import TeacherNotifications from '@/components/notifications/TeacherNotification
 import TeacherDashboard from '@/components/teacher/TeacherDashboard'
 import Wellbeing from '@/components/wellbeing/Wellbeing'
 import PomodoroTimer from '@/components/pomodoro/PomodoroTimer'
+import ExamRoutine from '@/components/tools/ExamRoutine'
 import PeerLeaderboard from '@/components/leaderboard/PeerLeaderboard'
 import StudyNotes from '@/components/notes/StudyNotes'
 import CourseCatalog from '@/components/courses/CourseCatalog'
@@ -64,7 +65,7 @@ import ResourceLibrary from '@/components/resources/ResourceLibrary'
 import GradeTracker from '@/components/grades/GradeTracker'
 
 // --- AI Tools Groups ---
-const aiToolGroups = ['AI Tools', 'Wellbeing']
+const aiToolGroups = ['AI Tools', 'Wellbeing', 'Analytics']
 
 const navItems: { key: PageKey; label: string; icon: React.ElementType; group: string }[] = [
   { key: 'dashboard', label: 'Growth Dashboard', icon: BarChart3, group: 'Analytics' },
@@ -79,6 +80,7 @@ const navItems: { key: PageKey; label: string; icon: React.ElementType; group: s
   { key: 'teacher', label: 'Teacher Dashboard', icon: GraduationCap, group: 'Admin' },
   { key: 'wellbeing', label: 'Wellbeing Support', icon: Shield, group: 'Wellbeing' },
   { key: 'pomodoro', label: 'Pomodoro Timer', icon: Timer, group: 'Tools' },
+  { key: 'exam-routine', label: 'Exam Routine', icon: CalendarDays, group: 'Tools' },
   { key: 'leaderboard', label: 'Leaderboard', icon: Users, group: 'Progress' },
   { key: 'notes', label: 'Study Notes', icon: StickyNote, group: 'Tools' },
   { key: 'courses', label: 'Course Catalog', icon: Library, group: 'Learning' },
@@ -102,6 +104,7 @@ const pageLabels = (isTeacher: boolean): Record<PageKey, string> => ({
   'teacher': 'Teacher Dashboard',
   'wellbeing': 'AI Wellbeing Support',
   'pomodoro': 'Pomodoro Timer',
+  'exam-routine': 'Exam Routine',
   'leaderboard': 'Peer Leaderboard',
   'notes': 'Study Notes',
   'courses': 'Course Catalog',
@@ -110,6 +113,7 @@ const pageLabels = (isTeacher: boolean): Record<PageKey, string> => ({
   'forum': 'Discussion Forum',
   'resources': 'Resource Library',
   'grades': 'Grade Tracker',
+  'exam-routine': 'Exam Routine',
 })
 
 // --- Notification mock data ---
@@ -850,6 +854,7 @@ const pageComponents: Record<PageKey, React.ComponentType> = {
   'teacher': TeacherDashboard,
   'wellbeing': Wellbeing,
   'pomodoro': PomodoroTimer,
+  'exam-routine': ExamRoutine,
   'leaderboard': PeerLeaderboard,
   'notes': StudyNotes,
   'courses': CourseCatalog,

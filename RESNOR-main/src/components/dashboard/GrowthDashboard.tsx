@@ -62,6 +62,8 @@ import { cn } from '@/lib/utils'
 import { motion, useMotionValue, animate } from 'framer-motion'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 // ── Count-Up Hook ──
 function useCountUp(target: number, duration: number = 1200, decimals: number = 0) {
@@ -485,6 +487,12 @@ export default function GrowthDashboard() {
   const [weakAnalysis, setWeakAnalysis] = useState<any>(null)
   const [weakLoading, setWeakLoading] = useState(false)
   const [weakDialogOpen, setWeakDialogOpen] = useState(false)
+  const [quizInsight, setQuizInsight] = useState<any>(null)
+  const [quizInsightLoading, setQuizInsightLoading] = useState(false)
+  const [quizInsightOpen, setQuizInsightOpen] = useState(false)
+  const [materialPriority, setMaterialPriority] = useState<any>(null)
+  const [materialPriorityLoading, setMaterialPriorityLoading] = useState(false)
+  const [materialPriorityOpen, setMaterialPriorityOpen] = useState(false)
 
   useEffect(() => {
     if (!authUser?.id) return
@@ -499,22 +507,18 @@ export default function GrowthDashboard() {
       .finally(() => setLoading(false))
   }, [authUser?.id])
 
-  // Fetch AI-generated smart goals
+  // Load cached AI goals from localStorage (don't auto-regenerate on page load)
   useEffect(() => {
-    if (!authUser?.id || !data) return
-    setGoalsLoading(true)
-    fetch('/api/dashboard/ai-goals', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ student_id: authUser.id }),
-    })
-      .then(r => r.json())
-      .then(res => {
-        if (res.goals) setAiGoals(res.goals)
-      })
-      .catch(() => {})
-      .finally(() => setGoalsLoading(false))
-  }, [authUser?.id, data])
+    try {
+      const cached = localStorage.getItem('resnor_weekly_goals')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (parsed?.goals && Array.isArray(parsed.goals)) {
+          setAiGoals(parsed.goals)
+        }
+      }
+    } catch {}
+  }, [])
 
   // Auto-award XP when all goals completed
   useEffect(() => {
@@ -540,6 +544,19 @@ export default function GrowthDashboard() {
           duration: 4000,
         })
         window.dispatchEvent(new Event('xp-updated'))
+        // Auto-regenerate goals after completion
+        return fetch('/api/dashboard/ai-goals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ student_id: authUser.id }),
+        })
+      })
+      .then(r => r.json())
+      .then(res => {
+        if (res.goals) {
+          setAiGoals(res.goals)
+          localStorage.setItem('resnor_weekly_goals', JSON.stringify({ goals: res.goals }))
+        }
       })
       .catch(() => {})
   }, [authUser?.id, aiGoals, xpAwarded])
@@ -560,6 +577,38 @@ export default function GrowthDashboard() {
       .finally(() => setWeakLoading(false))
   }, [authUser?.id, data, weakAnalysis])
 
+  const handleQuizInsight = useCallback(() => {
+    if (!authUser?.id) return
+    setQuizInsightOpen(true)
+    if (quizInsight) return
+    setQuizInsightLoading(true)
+    fetch('/api/dashboard/ai-quiz-insight', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id: authUser.id }),
+    })
+      .then(r => r.json())
+      .then(res => setQuizInsight(res))
+      .catch(() => setQuizInsight({ avgScore: 0, totalQuizzes: 0, insights: [] }))
+      .finally(() => setQuizInsightLoading(false))
+  }, [authUser?.id, quizInsight])
+
+  const handleMaterialPriority = useCallback(() => {
+    if (!authUser?.id) return
+    setMaterialPriorityOpen(true)
+    if (materialPriority) return
+    setMaterialPriorityLoading(true)
+    fetch('/api/dashboard/ai-material-priority', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id: authUser.id }),
+    })
+      .then(r => r.json())
+      .then(res => setMaterialPriority(res))
+      .catch(() => setMaterialPriority({ suggestions: [], summary: { completed: 0, inProgress: 0, pending: 0, total: 0 } }))
+      .finally(() => setMaterialPriorityLoading(false))
+  }, [authUser?.id, materialPriority])
+
   const handleRegenerateGoals = useCallback(() => {
     if (!authUser?.id) return
     setGoalsLoading(true)
@@ -572,7 +621,10 @@ export default function GrowthDashboard() {
     })
       .then(r => r.json())
       .then(res => {
-        if (res.goals) setAiGoals(res.goals)
+        if (res.goals) {
+          setAiGoals(res.goals)
+          localStorage.setItem('resnor_weekly_goals', JSON.stringify({ goals: res.goals }))
+        }
       })
       .catch(() => {})
       .finally(() => setGoalsLoading(false))
@@ -700,7 +752,7 @@ export default function GrowthDashboard() {
   const statCards = [
     { title: 'Total Materials', rawValue: mp.total, decimals: 0, subtitle: `${mp.done} done · ${mp.pending} pending`, icon: BookOpen, borderColor: 'border-l-emerald-500', iconColor: 'text-emerald-500', hoverGlow: 'oklch(0.646 0.222 41.116)', trend: 'up' as const, trendValue: `${mp.total > 0 ? Math.round(mp.done / mp.total * 100) : 0}%`, sparkline: [mp.total - mp.pending - mp.inProgress, mp.done + mp.inProgress, mp.total], sparkColor: 'oklch(0.646 0.222 41.116)' },
     { title: 'Study Time', rawValue: totalTime, decimals: 0, subtitle: `${data.weeklyActivity?.reduce((a: number, d: any) => a + d.hours, 0).toFixed(1) || 0}h this week`, icon: Clock, borderColor: 'border-l-amber-500', iconColor: 'text-amber-500', hoverGlow: 'oklch(0.769 0.188 70.08)', trend: 'up' as const, trendValue: `${totalTime > 0 ? '+' + Math.round(totalTime / 60 * 10) / 10 + 'h' : '0h'}`, sparkline: data.weeklyActivity?.map((d: any) => d.hours) || [0], sparkColor: 'oklch(0.769 0.188 70.08)', suffix: 'm' },
-    { title: 'Quiz Average', rawValue: avgScore, decimals: 1, subtitle: `Across ${data.totalQuizAttempts || 0} quizzes`, icon: Target, borderColor: 'border-l-teal-500', iconColor: 'text-teal-500', hoverGlow: 'oklch(0.6 0.118 184.704)', trend: 'up' as const, trendValue: avgScore > 0 ? `+${avgScore > 50 ? Math.round(avgScore / 5) : avgScore}%` : '0%', sparkline: data.quizAttempts?.map((a: any) => a.score).reverse() || [0], sparkColor: 'oklch(0.6 0.118 184.704)', suffix: '%' },
+    { title: 'Quiz Average', rawValue: avgScore, decimals: 1, subtitle: `Across ${data.totalQuizAttempts || 0} quizzes`, icon: Target, borderColor: 'border-l-teal-500', iconColor: 'text-teal-500', hoverGlow: 'oklch(0.6 0.118 184.704)', trend: 'up' as const, trendValue: avgScore > 0 ? `+${avgScore > 50 ? Math.round(avgScore / 5) : avgScore}%` : '0%', sparkline: data.quizAttempts?.map((a: any) => a.score).reverse() || [0], sparkColor: 'oklch(0.6 0.118 184.704)', suffix: '%', onIconClick: handleQuizInsight },
     { title: 'Weakest Topic', rawValue: weakestTopic ? Math.round(weakestTopic.avg) : 0, decimals: 0, subtitle: weakestTopic ? `${weakestTopic.name} · last: ${Math.round(weakestTopic.scores[weakestTopic.scores.length - 1])}%` : 'No data', icon: BrainCircuit, borderColor: 'border-l-orange-500', iconColor: 'text-orange-500', hoverGlow: 'oklch(0.6 0.2 65)', trend: weakestTrend, trendValue: weakestTrendVal, sparkline: weakestTopic?.scores.slice(-5) || [0], sparkColor: 'oklch(0.6 0.2 65)', suffix: '%', onIconClick: handleAnalyzeWeakTopic },
   ]
 
@@ -715,7 +767,13 @@ export default function GrowthDashboard() {
       <WeeklyGoalsSection goals={goals} goalsLoading={goalsLoading} xpReward={xpReward} xpAwarded={xpAwarded} onRegenerate={handleRegenerateGoals} />
 
       {/* Section: Performance Overview */}
-      <SectionHeader icon={BarChart3} title="Performance Overview" accentColor="border-l-emerald-500" iconColor="text-emerald-600 dark:text-emerald-400" />
+      <div className="flex items-center gap-2">
+        <SectionHeader icon={BarChart3} title="Performance Overview" accentColor="border-l-emerald-500" iconColor="text-emerald-600 dark:text-emerald-400" />
+        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/30 border border-orange-200/50 dark:border-orange-800/30">
+          <Sparkles className="h-3 w-3 text-orange-500" />
+          <span className="text-[9px] font-semibold text-orange-600 dark:text-orange-400 tracking-wide">AI</span>
+        </div>
+      </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((card) => <StatCard key={card.title} {...card} />)}
       </div>
@@ -727,8 +785,22 @@ export default function GrowthDashboard() {
         <motion.div whileHover={{ y: -2 }} transition={{ type: 'spring', stiffness: 400, damping: 25 }}>
           <Card className="h-full transition-shadow duration-300 hover:shadow-md">
             <CardHeader>
-              <CardTitle className="text-base">Material Progress</CardTitle>
-              <CardDescription>Completion breakdown across all courses</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base">Material Progress</CardTitle>
+                  <CardDescription>Completion breakdown across all courses</CardDescription>
+                </div>
+                <motion.button
+                  type="button"
+                  onClick={handleMaterialPriority}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/40 hover:bg-amber-200 dark:hover:bg-amber-800/40 transition-colors"
+                  title="AI Priority Sorter"
+                >
+                  <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                </motion.button>
+              </div>
             </CardHeader>
             <CardContent>
               {mp.total > 0 ? (
@@ -778,7 +850,23 @@ export default function GrowthDashboard() {
                   </CardTitle>
                   <CardDescription>Correct vs Incorrect per attempt</CardDescription>
                 </div>
-                {uniqueQuizNames.length > 0 && (
+                <div className="flex items-center gap-2">
+                  {selectedQuiz && (
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => {
+                        useAppStore.getState().setPreselectedQuizTitle(selectedQuiz)
+                        useAppStore.getState().setActivePage('explain-mistake')
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200/50 dark:border-rose-800/30 text-rose-700 dark:text-rose-300 text-xs font-semibold hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors shrink-0"
+                    >
+                      <SearchIcon className="h-3.5 w-3.5" />
+                      Review My Mistake
+                    </motion.button>
+                  )}
+                  {uniqueQuizNames.length > 0 && (
                   <div ref={searchRef} className="relative w-full sm:w-[280px]">
                     <div className={cn(
                       "flex items-center gap-2 rounded-xl border-2 bg-background/80 backdrop-blur-sm px-3.5 py-2 text-sm transition-all duration-200",
@@ -836,6 +924,7 @@ export default function GrowthDashboard() {
                     )}
                   </div>
                 )}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="relative">
@@ -1026,6 +1115,252 @@ export default function GrowthDashboard() {
           </motion.div>
         </div>
       </div>
+      {/* Material Priority AI Sheet */}
+      <Sheet open={materialPriorityOpen} onOpenChange={setMaterialPriorityOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md p-0 gap-0 flex flex-col overflow-hidden">
+          <SheetTitle className="sr-only">AI Priority Sorter</SheetTitle>
+          <SheetDescription className="sr-only">Prioritized materials for upcoming exams</SheetDescription>
+          {/* Fixed header */}
+          <div className="relative overflow-hidden shrink-0 bg-gradient-to-br from-slate-900 via-slate-800 to-amber-900 px-5 pt-5 pb-6">
+            <motion.div className="absolute -top-12 -right-12 w-36 h-36 bg-amber-400/10 rounded-full blur-3xl" animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }} transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }} />
+            <motion.div className="absolute -bottom-8 -left-8 w-24 h-24 bg-orange-400/8 rounded-full blur-2xl" animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.5, 0.2] }} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: 1 }} />
+            <motion.div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-400/50 to-transparent" animate={{ x: ['-100%', '100%'] }} transition={{ duration: 2.5, repeat: Infinity, ease: 'linear' }} />
+            <div className="relative z-10 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/10">
+                  <Sparkles className="h-5 w-5 text-amber-300" />
+                </div>
+                <div>
+                  <p className="text-base font-bold text-white">AI Priority Sorter</p>
+                  <p className="text-xs text-white/60 mt-0.5">
+                    {materialPriority ? `${materialPriority.summary.pending + materialPriority.summary.inProgress} unfinished · ${materialPriority.summary.completed} done` : 'Analyzing...'}
+                  </p>
+                </div>
+              </div>
+              {materialPriority && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 border border-white/10">
+                  <BookOpen className="h-3 w-3 text-amber-300" />
+                  <span className="text-[11px] font-semibold text-white/80">{materialPriority.summary.pending + materialPriority.summary.inProgress} unfinished</span>
+                </div>
+              )}
+            </div>
+          </div>
+          {/* Scrollable body */}
+          <ScrollArea className="flex-1 p-5 h-full">
+            {materialPriorityLoading ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <div className="relative">
+                  <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+                  <motion.div className="absolute inset-0 rounded-full border-2 border-amber-500/20" animate={{ scale: [1, 1.4, 1], opacity: [0.5, 0, 0.5] }} transition={{ duration: 1.5, repeat: Infinity }} />
+                </div>
+                <p className="text-sm text-muted-foreground">Analyzing materials against your exam routine...</p>
+              </div>
+            ) : materialPriority?.suggestions?.length ? (
+              <div className="space-y-2.5">
+                {/* Exam countdown bar */}
+                {materialPriority.routine?.length && (
+                  <div className="flex items-center gap-2 mb-2 overflow-x-auto pb-1">
+                    {materialPriority.routine.map((ex: any, i: number) => (
+                      <div key={i} className={cn(
+                        'flex items-center gap-1.5 shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border',
+                        ex.daysUntil <= 7 ? 'bg-rose-50 dark:bg-rose-950/20 border-rose-200/50 dark:border-rose-800/30 text-rose-700 dark:text-rose-300' :
+                        ex.daysUntil <= 14 ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200/50 dark:border-amber-800/30 text-amber-700 dark:text-amber-300' :
+                        'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200/50 dark:border-emerald-800/30 text-emerald-700 dark:text-emerald-300'
+                      )}>
+                        <Timer className="h-3 w-3" />
+                        <span className="font-bold tabular-nums">{ex.daysUntil}d</span>
+                        <span className="opacity-70">{ex.course}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="h-5 w-1 rounded-full bg-gradient-to-b from-amber-400 to-orange-400" />
+                  <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wider">Prioritized for upcoming exams</p>
+                </div>
+                {materialPriority.suggestions.map((s: any, i: number) => {
+                  const priorityLabel = s.priority === 'high' ? 'High Priority' : s.priority === 'medium' ? 'Medium' : 'Low'
+                  return (
+                    <motion.div
+                      key={s.topic}
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: i * 0.08 }}
+                      className="rounded-xl border border-border/60 bg-card p-4 space-y-2 hover:shadow-sm hover:border-amber-200/50 dark:hover:border-amber-800/30 transition-all"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={cn('h-2 w-2 rounded-full', s.priority === 'high' ? 'bg-rose-500' : s.priority === 'medium' ? 'bg-amber-500' : 'bg-sky-500')} />
+                          <span className="font-semibold text-sm">{s.topic}</span>
+                        </div>
+                        <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full', s.priority === 'high' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300' : s.priority === 'medium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300')}>{priorityLabel}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{s.reason}</p>
+                      {s.estimatedTime && (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          <span>{s.estimatedTime} to finish</span>
+                        </div>
+                      )}
+                    </motion.div>
+                  )
+                })}
+              </div>
+            ) : materialPriority && !materialPriority.suggestions?.length ? (
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center py-16 gap-3">
+                {materialPriority.summary.total === 0 ? (
+                  <>
+                    <div className="h-16 w-16 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-950/40 dark:to-orange-950/40 flex items-center justify-center">
+                      <BookOpen className="h-7 w-7 text-amber-500" />
+                    </div>
+                    <p className="text-base font-semibold text-foreground">No materials yet</p>
+                    <p className="text-sm text-muted-foreground text-center max-w-xs">Start studying and completing materials to get personalized priority suggestions.</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="h-16 w-16 rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-950/40 dark:to-teal-950/40 flex items-center justify-center">
+                      <CheckCircle className="h-7 w-7 text-emerald-500" />
+                    </div>
+                    <p className="text-base font-semibold text-foreground">All materials completed!</p>
+                    <p className="text-sm text-muted-foreground text-center max-w-xs">No pending materials — you're fully prepared for exams.</p>
+                  </>
+                )}
+              </motion.div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground">
+                <BookOpen className="h-8 w-8 opacity-30" />
+                <p className="text-sm">Click the sparkle icon on Material Progress</p>
+              </div>
+            )}
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
+
+      {/* Quiz Insight AI Dialog */}
+      <Dialog open={quizInsightOpen} onOpenChange={setQuizInsightOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl p-0 overflow-hidden gap-0 shadow-2xl border-0">
+          {/* Header */}
+          <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-teal-900 px-5 pt-5 pb-6">
+            <motion.div className="absolute -top-12 -right-12 w-36 h-36 bg-teal-400/10 rounded-full blur-3xl" animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }} transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }} />
+            <motion.div className="absolute -bottom-8 -left-8 w-24 h-24 bg-emerald-400/8 rounded-full blur-2xl" animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.5, 0.2] }} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: 1 }} />
+            <motion.div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-teal-400/50 to-transparent" animate={{ x: ['-100%', '100%'] }} transition={{ duration: 2.5, repeat: Infinity, ease: 'linear' }} />
+            <div className="relative z-10 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 shadow-sm">
+                  <Target className="h-5 w-5 text-teal-300" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold text-white">AI Quiz Insights</DialogTitle>
+                  <DialogDescription className="text-xs text-white/60 mt-0.5">
+                    {quizInsight ? `Based on ${quizInsight.totalQuizzes} quizzes` : 'Analyzing...'}
+                  </DialogDescription>
+                </div>
+              </div>
+              {quizInsight && (
+                <div className="flex flex-col items-center">
+                  <div className="text-2xl font-bold text-white tabular-nums">{quizInsight.avgScore}%</div>
+                  <div className="text-[9px] text-white/50 font-medium uppercase tracking-wider">Average</div>
+                </div>
+              )}
+            </div>
+          </div>
+          {/* Body */}
+          <div className="p-5">
+            {quizInsightLoading ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-3">
+                <div className="relative">
+                  <Loader2 className="h-8 w-8 animate-spin text-teal-500" />
+                  <motion.div className="absolute inset-0 rounded-full border-2 border-teal-500/20" animate={{ scale: [1, 1.4, 1], opacity: [0.5, 0, 0.5] }} transition={{ duration: 1.5, repeat: Infinity }} />
+                </div>
+                <p className="text-sm text-muted-foreground">Analyzing your quiz data...</p>
+              </div>
+            ) : quizInsight?.insights?.length ? (
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="h-5 w-1 rounded-full bg-gradient-to-b from-teal-400 to-emerald-400" />
+                  <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wider">Focus on these topics to boost your score</p>
+                </div>
+                {quizInsight.insights.map((item: any, i: number) => {
+                  const maxGain = quizInsight.insights[0].gain
+                  const barPct = (item.gain / maxGain) * 100
+                  return (
+                    <motion.button
+                      key={item.topic}
+                      type="button"
+                      onClick={() => {
+                        const topicMap: Record<string, string> = {
+                          'Arrays & Linked Lists': 'arrays',
+                          'Trees & BST': 'trees',
+                          'Sorting Algorithms': 'sorting',
+                          'Graphs & Traversal': 'graph',
+                          'Dynamic Programming': 'dp',
+                          'Hash Tables': 'hashing',
+                          'Recursion': 'recursion',
+                          'Big-O Complexity': 'complexity',
+                        }
+                        const topicId = topicMap[item.topic] || item.topic.toLowerCase().replace(/\s+/g, '-')
+                        useAppStore.getState().setPreselectedQuizTopic(topicId)
+                        useAppStore.getState().setPreselectedQuizTopicTitle(item.topic)
+                        useAppStore.getState().setActivePage('quiz')
+                      }}
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: i * 0.08 }}
+                      className="group relative w-full text-left rounded-xl border border-border/60 bg-card hover:bg-teal-50/50 dark:hover:bg-teal-950/20 hover:border-teal-200/50 dark:hover:border-teal-800/30 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300"
+                    >
+                      <div className="flex items-center gap-3 px-4 py-3">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground tabular-nums">
+                          {i + 1}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate group-hover:text-teal-700 dark:group-hover:text-teal-300 transition-colors">
+                            {item.topic}
+                          </p>
+                          <div className="mt-1 flex items-center gap-2">
+                            <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${barPct}%` }}
+                                transition={{ duration: 0.6, delay: 0.3 + i * 0.08, ease: 'easeOut' }}
+                                className="h-full rounded-full bg-teal-400/70"
+                              />
+                            </div>
+                            <span className="text-xs font-semibold tabular-nums text-teal-600 dark:text-teal-400 shrink-0">+{item.gain}%</span>
+                          </div>
+                        </div>
+                        <motion.div
+                          animate={{ x: [0, 4, 0] }}
+                          transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.3 }}
+                          className="shrink-0 text-muted-foreground/30 group-hover:text-teal-400/50 transition-colors"
+                        >
+                          <ArrowRight className="h-4 w-4" />
+                        </motion.div>
+                      </div>
+                    </motion.button>
+                  )
+                })}
+              </div>
+            ) : quizInsight && !quizInsight.insights?.length ? (
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center py-10 gap-3">
+                <div className="relative">
+                  <div className="h-16 w-16 rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-950/40 dark:to-teal-950/40 flex items-center justify-center">
+                    <Sparkles className="h-7 w-7 text-emerald-500" />
+                  </div>
+                  <motion.div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-emerald-400" animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0.8, 0.4] }} transition={{ duration: 1.5, repeat: Infinity }} />
+                </div>
+                <p className="text-base font-semibold text-foreground">All Topics Looking Strong!</p>
+                <p className="text-sm text-muted-foreground text-center max-w-xs">No major weak spots — consistent performance across the board. Keep it up!</p>
+              </motion.div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
+                <Target className="h-8 w-8 opacity-30" />
+                <p className="text-sm">Click the Target icon on the Quiz Average card</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Weak Topic AI Analysis Dialog */}
       <Dialog open={weakDialogOpen} onOpenChange={setWeakDialogOpen}>
         <DialogContent className="sm:max-w-lg rounded-2xl p-0 overflow-hidden gap-0 shadow-2xl border-0">

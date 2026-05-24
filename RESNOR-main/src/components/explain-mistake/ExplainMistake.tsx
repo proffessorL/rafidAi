@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   CheckCircle2,
   XCircle,
@@ -32,6 +32,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { useAppStore } from '@/stores/app'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -381,27 +382,62 @@ function getMistakeType(attemptId: string, questionId: number): string {
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function ExplainMistake() {
-  const [selectedAttemptId, setSelectedAttemptId] = useState(quizAttempts[0].id);
+  const reviewData = useAppStore((s) => s.reviewAttemptData)
+  const clearReviewData = useAppStore((s) => s.setReviewAttemptData)
+  const attempts = useMemo(() => {
+    if (reviewData) {
+      // Convert store data to match the component's mock schema
+      return [{
+        id: reviewData.id,
+        label: reviewData.label,
+        date: reviewData.date,
+        score: reviewData.score,
+        questions: reviewData.questions,
+      }]
+    }
+    return quizAttempts
+  }, [reviewData])
+
+  const [selectedAttemptId, setSelectedAttemptId] = useState(attempts[0]?.id ?? '');
   const [loadingExplanations, setLoadingExplanations] = useState<Set<string>>(new Set());
-  const [loadedExplanations, setLoadedExplanations] = useState<Set<string>>(new Set());
+  const [explanations, setExplanations] = useState<Record<string, AIExplanation>>({});
+
+  // When review data is present, auto-set the attempt
+  useEffect(() => {
+    if (reviewData) {
+      setSelectedAttemptId(reviewData.id)
+    }
+  }, [reviewData])
+
+  // Auto-select attempt from dashboard review click
+  useEffect(() => {
+    const { preselectedQuizTitle, setPreselectedQuizTitle } = useAppStore.getState()
+    if (preselectedQuizTitle) {
+      const match = attempts.find(a =>
+        a.label.toLowerCase().includes(preselectedQuizTitle.toLowerCase())
+      )
+      if (match) setSelectedAttemptId(match.id)
+      setPreselectedQuizTitle(null)
+    }
+  }, [attempts])
 
   const selectedAttempt = useMemo(
-    () => quizAttempts.find((a) => a.id === selectedAttemptId) ?? quizAttempts[0],
-    [selectedAttemptId]
+    () => attempts.find((a) => a.id === selectedAttemptId) ?? attempts[0],
+    [selectedAttemptId, attempts]
   );
 
   const wrongQuestions = useMemo(
-    () => selectedAttempt.questions.filter((q) => !q.isCorrect),
+    () => selectedAttempt?.questions.filter((q) => !q.isCorrect) ?? [],
     [selectedAttempt]
   );
 
   const correctCount = useMemo(
-    () => selectedAttempt.questions.filter((q) => q.isCorrect).length,
+    () => selectedAttempt?.questions.filter((q) => q.isCorrect).length ?? 0,
     [selectedAttempt]
   );
 
   const accuracy = useMemo(
-    () => Math.round((correctCount / selectedAttempt.questions.length) * 100),
+    () => selectedAttempt ? Math.round((correctCount / selectedAttempt.questions.length) * 100) : 0,
     [correctCount, selectedAttempt]
   );
 
@@ -415,19 +451,89 @@ export default function ExplainMistake() {
     return sorted[0]?.[0] ?? "None";
   }, [wrongQuestions]);
 
+  // Auto-fetch AI explanations for all wrong questions
+  useEffect(() => {
+    wrongQuestions.forEach((q) => {
+      const key = explanationKey(q.id)
+      if (explanations[key]) return
+      setLoadingExplanations((prev) => new Set(prev).add(key))
+      fetch('/api/explain-mistake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: q.text,
+          studentAnswer: q.studentAnswer,
+          correctAnswer: q.correctAnswer,
+          mistakeType: q.mistakeType || null,
+        }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          setExplanations(prev => ({ ...prev, [key]: data }))
+        })
+          .catch(() => {
+            setExplanations(prev => ({
+              ...prev,
+              [key]: {
+                rootCause: `You answered "${q.studentAnswer}" but the correct answer is "${q.correctAnswer}".`,
+                conceptBreakdown: 'Review this concept and try similar questions.',
+                correctiveExplanation: `The correct answer is "${q.correctAnswer}". Practice to reinforce.`,
+                relatedTopics: [],
+              },
+            }))
+          })
+        .finally(() => {
+          setLoadingExplanations((prev) => { const next = new Set(prev); next.delete(key); return next })
+        })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAttemptId])
+
   const handleAccordionToggle = useCallback((value: string) => {
-    const key = value; // value is the accordion item value
-    if (loadedExplanations.has(key)) return;
+    const key = value;
+    if (explanations[key]) return;
     setLoadingExplanations((prev) => new Set(prev).add(key));
-    setTimeout(() => {
-      setLoadedExplanations((prev) => new Set(prev).add(key));
-      setLoadingExplanations((prev) => {
-        const next = new Set(prev);
-        next.delete(key);
-        return next;
-      });
-    }, 1000);
-  }, [loadedExplanations]);
+
+    // Find the question for this key
+    const lastDash = key.lastIndexOf('-')
+    const qId = parseInt(key.slice(lastDash + 1))
+    const attemptId = key.slice(0, lastDash)
+    const attempt = attempts.find(a => a.id === attemptId)
+    const question = attempt?.questions.find(q => q.id === qId)
+    if (!question) {
+      setLoadingExplanations((prev) => { const next = new Set(prev); next.delete(key); return next })
+      return
+    }
+
+    fetch('/api/explain-mistake', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question: question.text,
+        studentAnswer: question.studentAnswer,
+        correctAnswer: question.correctAnswer,
+        mistakeType: question.mistakeType || null,
+      }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        setExplanations(prev => ({ ...prev, [key]: data }))
+      })
+      .catch(() => {
+        setExplanations(prev => ({
+          ...prev,
+          [key]: {
+            rootCause: `You answered "${question.studentAnswer}" but the correct answer is "${question.correctAnswer}".`,
+            conceptBreakdown: 'Review this concept and try similar questions.',
+            correctiveExplanation: `The correct answer is "${question.correctAnswer}". Practice to reinforce.`,
+            relatedTopics: [],
+          },
+        }))
+      })
+      .finally(() => {
+        setLoadingExplanations((prev) => { const next = new Set(prev); next.delete(key); return next })
+      })
+  }, [explanations]);
 
   const explanationKey = (questionId: number) => `${selectedAttempt.id}-${questionId}`;
 
@@ -444,25 +550,35 @@ export default function ExplainMistake() {
       {/* Attempt Selector */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <label htmlFor="attempt-select" className="text-sm font-medium whitespace-nowrap">
-            Select Attempt:
-          </label>
-          <Select value={selectedAttemptId} onValueChange={(v) => {
-            setSelectedAttemptId(v);
-            setLoadedExplanations(new Set());
-            setLoadingExplanations(new Set());
-          }}>
-            <SelectTrigger id="attempt-select" className="w-[300px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {quizAttempts.map((a) => (
-                <SelectItem key={a.id} value={a.id}>
-                  {a.label} — {a.score}%
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {attempts.length > 1 && (
+            <>
+              <label htmlFor="attempt-select" className="text-sm font-medium whitespace-nowrap">
+                Select Attempt:
+              </label>
+              <Select value={selectedAttemptId} onValueChange={(v) => {
+                setSelectedAttemptId(v);
+                setExplanations({});
+                setLoadingExplanations(new Set());
+              }}>
+                <SelectTrigger id="attempt-select" className="w-[300px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {attempts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.label} — {a.score}%
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
+          {attempts.length === 1 && selectedAttempt && (
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold">{selectedAttempt.label}</h2>
+              <Badge variant="secondary">{selectedAttempt.date}</Badge>
+            </div>
+          )}
         </div>
       </div>
 
@@ -622,7 +738,7 @@ export default function ExplainMistake() {
                           ) : (
                             <div className="space-y-4">
                               {(() => {
-                                const expl = mockExplanations[explanationKey(question.id)];
+                                const expl = explanations[explanationKey(question.id)];
                                 if (!expl) return <p className="text-sm text-muted-foreground">No explanation available.</p>;
                                 return (
                                   <>

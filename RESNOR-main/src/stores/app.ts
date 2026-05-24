@@ -21,6 +21,7 @@ export type PageKey =
   | 'profile'
   | 'forum'
   | 'grades'
+  | 'exam-routine'
 
 interface AppState {
   activePage: PageKey
@@ -40,6 +41,29 @@ interface AppState {
   breakReminder: { show: boolean; autoStartLongBreak: boolean }
   triggerBreakReminder: () => void
   dismissBreakReminder: () => void
+  preselectedQuizTopic: string | null
+  setPreselectedQuizTopic: (topic: string | null) => void
+  preselectedQuizTopicTitle: string | null
+  setPreselectedQuizTopicTitle: (title: string | null) => void
+  preselectedQuizTitle: string | null
+  setPreselectedQuizTitle: (title: string | null) => void
+  reviewAttemptData: {
+    id: string
+    label: string
+    date: string
+    score: number
+    totalQuestions: number
+    questions: Array<{
+      id: number
+      text: string
+      options: string[]
+      studentAnswer: string
+      correctAnswer: string
+      isCorrect: boolean
+      mistakeType?: string
+    }>
+  } | null
+  setReviewAttemptData: (data: AppState['reviewAttemptData']) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -53,4 +77,12 @@ export const useAppStore = create<AppState>((set) => ({
   breakReminder: { show: false, autoStartLongBreak: false },
   triggerBreakReminder: () => set({ breakReminder: { show: true, autoStartLongBreak: true } }),
   dismissBreakReminder: () => set({ breakReminder: { show: false, autoStartLongBreak: false } }),
+  preselectedQuizTopic: null,
+  setPreselectedQuizTopic: (topic) => set({ preselectedQuizTopic: topic }),
+  preselectedQuizTopicTitle: null,
+  setPreselectedQuizTopicTitle: (title) => set({ preselectedQuizTopicTitle: title }),
+  preselectedQuizTitle: null,
+  setPreselectedQuizTitle: (title) => set({ preselectedQuizTitle: title }),
+  reviewAttemptData: null,
+  setReviewAttemptData: (data) => set({ reviewAttemptData: data }),
 }))
