@@ -252,7 +252,6 @@ export default function QuizGenerator() {
   const [answers, setAnswers] = useState<(number | null)[]>([])
   const [timeLeft, setTimeLeft] = useState(0)
   const [results, setResults] = useState<QuizResult[]>([])
-  const [showReview, setShowReview] = useState(false)
   const [answerFeedback, setAnswerFeedback] = useState<{ index: number; correct: boolean } | null>(null)
   const [customTopic, setCustomTopic] = useState('')
   const [quizId, setQuizId] = useState<string | null>(null)
@@ -277,9 +276,6 @@ export default function QuizGenerator() {
   const [error, setError] = useState('')
   const [usedFallback, setUsedFallback] = useState(false)
   const [attemptId, setAttemptId] = useState<string | null>(null)
-  const [aiExplanations, setAiExplanations] = useState<Record<string, any>>({})
-  const [loadingAI, setLoadingAI] = useState(false)
-  const [expandedAI, setExpandedAI] = useState<Set<string>>(new Set())
   const timeUpRef = useRef(false)
   const authUser = useAuthStore((s) => s.user)
 
@@ -454,33 +450,28 @@ export default function QuizGenerator() {
     }
   }
 
-  const fetchAIExplanations = useCallback(async () => {
-    if (!attemptId || aiExplanations[attemptId]) return
-    setLoadingAI(true)
-    try {
-      const res = await fetch(`/api/quiz/explain-mistake?attempt_id=${attemptId}`)
-      if (!res.ok) throw new Error('Failed to fetch explanations')
-      const data = await res.json()
-      const explMap: Record<string, any> = {}
-      data.explanations?.forEach((e: any) => {
-        explMap[e.questionId] = e
-      })
-      setAiExplanations((prev) => ({ ...prev, [attemptId]: explMap }))
-    } catch {
-      setAiExplanations((prev) => ({ ...prev, [attemptId]: {} }))
-    } finally {
-      setLoadingAI(false)
-    }
-  }, [attemptId, aiExplanations])
-
-  const toggleAIExplanation = useCallback((questionId: string) => {
-    setExpandedAI((prev) => {
-      const next = new Set(prev)
-      if (next.has(questionId)) next.delete(questionId)
-      else next.add(questionId)
-      return next
+  const handleReviewMistakes = useCallback(() => {
+    const store = useAppStore.getState()
+    const mappedQuestions = questions.map((q, idx) => ({
+      id: idx + 1,
+      text: q.question,
+      options: q.options,
+      studentAnswer: answers[idx] !== null ? q.options[answers[idx]!] : 'Unanswered',
+      correctAnswer: q.options[q.correctIndex],
+      isCorrect: answers[idx] === q.correctIndex,
+      mistakeType: undefined as string | undefined,
+    }))
+    const correctCount = mappedQuestions.filter((q) => q.isCorrect).length
+    store.setReviewAttemptData({
+      id: attemptId || 'current',
+      label: `Quiz — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+      date: new Date().toISOString().split('T')[0],
+      score: questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0,
+      totalQuestions: questions.length,
+      questions: mappedQuestions,
     })
-  }, [])
+    store.setActivePage('explain-mistake')
+  }, [questions, answers, attemptId])
 
   const viewHistoryAttempt = useCallback((att: any) => {
     const optKeys = ['A', 'B', 'C', 'D']
@@ -513,7 +504,6 @@ export default function QuizGenerator() {
     setResults([])
     setCurrentIndex(0)
     setAnswers([])
-    setShowReview(false)
     setAnswerFeedback(null)
     setError('')
     setCustomTopic('')
@@ -522,9 +512,6 @@ export default function QuizGenerator() {
     setAttemptId(null)
     setUsedFallback(false)
     setShowAllHistory(false)
-    setAiExplanations({})
-    setExpandedAI(new Set())
-    setLoadingAI(false)
   }
 
   // ── Computed ──────────────────────────────────────────────────────────────
@@ -1233,129 +1220,7 @@ export default function QuizGenerator() {
         <Sparkles className="size-4 text-amber-500" />
       </motion.div>
 
-      {/* Review Mistakes */}
-      <AnimatePresence>
-        {showReview && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Brain className="size-5 text-amber-500" />
-                  AI Mistake Review
-                </CardTitle>
-                <CardDescription>
-                  AI-powered analysis of each wrong answer with root cause and corrective explanation
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {results.filter((r) => !r.isCorrect).length === 0 ? (
-                  <p className="text-center text-muted-foreground py-4">
-                    No mistakes to review! Great job!
-                  </p>
-                ) : loadingAI ? (
-                  <div className="space-y-4">
-                    {results.filter((r) => !r.isCorrect).map((r) => (
-                      <div key={r.questionId} className="rounded-lg border p-4 space-y-2">
-                        <Skeleton className="h-5 w-3/4" />
-                        <Skeleton className="h-4 w-1/2" />
-                        <Skeleton className="h-4 w-full" />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  results
-                    .filter((r) => !r.isCorrect)
-                    .map((r) => {
-                      const aiExp = attemptId ? aiExplanations[attemptId]?.[r.questionId] : null
-                      return (
-                        <div key={r.questionId} className="space-y-2 rounded-lg border p-4">
-                          <div className="flex items-start gap-2">
-                            <XCircle className="mt-0.5 size-5 shrink-0 text-red-500" />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium">{r.question}</p>
-                              <div className="mt-2 flex flex-wrap gap-3 text-sm">
-                                <span className="text-red-500">
-                                  You: <span className="font-medium">{r.userAnswer || 'Unanswered'}</span>
-                                </span>
-                                <span className="text-emerald-600">
-                                  Correct: <span className="font-medium">{r.correctAnswer}</span>
-                                </span>
-                              </div>
-                            </div>
-                          </div>
 
-                          <Separator className="my-2" />
-
-                          {aiExp ? (
-                            <div className="space-y-3">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-1.5">
-                                  <AlertTriangle className="size-3.5 text-rose-500" />
-                                  <h4 className="text-xs font-semibold text-rose-500 uppercase tracking-wider">Root-Cause Analysis</h4>
-                                </div>
-                                <p className="text-sm text-muted-foreground pl-5">{aiExp.rootCause}</p>
-                              </div>
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-1.5">
-                                  <BookOpen className="size-3.5 text-emerald-600" />
-                                  <h4 className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Concept Breakdown</h4>
-                                </div>
-                                <p className="text-sm text-muted-foreground pl-5 whitespace-pre-line">{aiExp.conceptBreakdown}</p>
-                              </div>
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-1.5">
-                                  <Lightbulb className="size-3.5 text-amber-600" />
-                                  <h4 className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Corrective Explanation</h4>
-                                </div>
-                                <p className="text-sm text-muted-foreground pl-5">{aiExp.correctiveExplanation}</p>
-                              </div>
-                              {aiExp.relatedTopics?.length > 0 && (
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-1.5">
-                                    <Link2 className="size-3.5 text-muted-foreground" />
-                                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Related Topics</h4>
-                                  </div>
-                                  <div className="flex flex-wrap gap-1.5 pl-5">
-                                    {aiExp.relatedTopics.map((t: string) => (
-                                      <Badge key={t} variant="outline" className="text-xs">
-                                        {t}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ) : attemptId && !loadingAI ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="gap-2 text-xs"
-                              onClick={() => toggleAIExplanation(r.questionId)}
-                            >
-                              <Brain className="size-3.5" />
-                              Explain with AI
-                            </Button>
-                          ) : null}
-
-                          {!aiExp && (
-                            <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
-                              <span className="font-medium">Quick explanation:</span> {r.explanation}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Action Buttons */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -1365,14 +1230,11 @@ export default function QuizGenerator() {
         </Button>
         <Button
           variant="outline"
-          onClick={() => {
-            setShowReview((prev) => !prev)
-            if (!showReview && attemptId) fetchAIExplanations()
-          }}
+          onClick={handleReviewMistakes}
           className="gap-2"
         >
           <Brain className="size-4" />
-          {showReview ? 'Hide Mistakes' : 'Review Mistakes'}
+          Review Mistakes
         </Button>
         <Button onClick={handleRetake} className="gap-2">
           <RotateCcw className="size-4" />

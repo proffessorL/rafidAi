@@ -1123,7 +1123,10 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 exit={{ opacity: 0, y: -8, filter: 'blur(2px)' }}
                 transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className="p-4 md:p-6 max-w-[1600px] mx-auto pb-20 md:pb-6"
+                className={cn(
+                  resolvedPage === 'tutor' ? 'h-full overflow-hidden p-0' : 'p-4 md:p-6 pb-20 md:pb-6',
+                  'max-w-[1600px] mx-auto'
+                )}
               >
                 <ActiveComponent />
               </motion.div>

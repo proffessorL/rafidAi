@@ -35,6 +35,12 @@ model User {
   authSessions       AuthSession[]
   progress           StudentProgress?
   enrollments        Enrollment[]
+  misconceptionLogs  MisconceptionLog[]
+  cognitiveProfile   CognitiveProfile?
+  mistakeExplanations MistakeExplanation[]
+  remediationExercises RemediationExercise[]
+  followUpMessages   FollowUpMessage[]
+  studyNotes         StudyNote[]
 }
 
 model AuthSession {
@@ -177,12 +183,16 @@ model QuizAnswer {
 }
 
 model ChatSession {
-  id        String   @id @default(cuid())
-  studentId String
-  courseId  String?
-  title     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  studentId  String
+  courseId   String?
+  title      String?
+  mode       String   @default("explain")
+  topic      String?
+  questionId String?
+  context    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   student  User         @relation(fields: [studentId], references: [id])
   messages ChatMessage[]
@@ -336,4 +346,158 @@ model PomodoroSettings {
   autoStart           Boolean  @default(false)
   soundEnabled        Boolean  @default(true)
   updatedAt           DateTime @updatedAt
+}
+
+enum MistakeType {
+  CONCEPT_MISUNDERSTANDING
+  FALSE_ASSUMPTION
+  FORMULA_MISUSE
+  ALGEBRAIC_ERROR
+  CALCULATION_FLOW_EXCEPTION
+  LOGIC_ERROR
+  SEQUENTIAL_REASONING_FAILURE
+  SYNTAX_ERROR
+  EXECUTION_FLOW_DISCONNECT
+  MISINTERPRETATION
+  CARELESS_MISTAKE
+  KNOWLEDGE_GAP
+  GUESS_BASED
+  SUPERFICIALLY_MEMORIZED
+}
+
+enum CorrectnessLevel {
+  CORRECT
+  PARTIALLY_CORRECT
+  INCORRECT
+  CONCEPTUALLY_INCOMPLETE
+  GUESS_BASED
+  SUPERFICIALLY_MEMORIZED
+}
+
+enum RecoveryStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  PRACTICING
+  MASTERED
+  REVIEWING
+}
+
+model MisconceptionLog {
+  id                 String         @id @default(cuid())
+  studentId          String
+  conceptNodeId      String
+  frequencyCounter   Int            @default(1)
+  lastTriggeredAt    DateTime       @default(now())
+  recoveryStatus     RecoveryStatus @default(NOT_STARTED)
+  mistakeType        MistakeType
+  patternDescription String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, conceptNodeId])
+  @@index([studentId])
+  @@index([studentId, frequencyCounter])
+}
+
+model CognitiveProfile {
+  id                    String   @id @default(cuid())
+  studentId             String   @unique
+  totalEvaluations      Int      @default(0)
+  totalExplanations     Int      @default(0)
+  strongestAreas        String?
+  weakestAreas          String?
+  repeatedPatterns      String?
+  recoveryRate          Float    @default(0)
+  averageDissonanceScore Float   @default(0)
+  lastAnalyzedAt        DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model MistakeExplanation {
+  id                String         @id @default(cuid())
+  studentId         String
+  attemptId         String?
+  questionId        String?
+  mistakeType       MistakeType
+  correctnessLevel  CorrectnessLevel
+  mistakeSummary    String
+  rootCauseAnalysis String          @default("")
+  correctConcept    String          @default("")
+  simplifiedAnalogy String          @default("")
+  stepByStepCorrection String      @default("")
+  preventionTips    String          @default("")
+  errorCategory     String?
+  conceptLabel      String?
+  knowledgeGaps     String?
+  confidenceDissonanceFlag Boolean @default(false)
+  modelUsed         String         @default("cognitive-coach-v1")
+  tokenCount        Int?
+  latencyMs         Int?
+  createdAt         DateTime       @default(now())
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([studentId, createdAt])
+  @@index([studentId, errorCategory])
+}
+
+model RemediationExercise {
+  id            String   @id @default(cuid())
+  studentId     String
+  explanationId String?
+  conceptNodeId String
+  exerciseType  String
+  difficulty    String   @default("adaptive")
+  question      String
+  correctAnswer String
+  options       String?
+  hint          String?
+  studentAnswer String?
+  isCompleted   Boolean  @default(false)
+  score         Float?
+  createdAt     DateTime @default(now())
+  completedAt   DateTime?
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, conceptNodeId])
+}
+
+model StudyNote {
+  id        String    @id @default(cuid())
+  studentId String
+  title     String    @default("")
+  content   String    @default("")
+  category  String    @default("General")
+  tags      String    @default("[]")
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([studentId, updatedAt])
+}
+
+model FollowUpMessage {
+  id         String   @id @default(cuid())
+  studentId  String
+  attemptId  String?
+  questionId String?
+  message    String
+  response   String?
+  source     String   @default("explain-mistake")
+  createdAt  DateTime @default(now())
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([studentId, createdAt])
 }

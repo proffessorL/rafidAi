@@ -64,6 +64,10 @@ interface AppState {
     }>
   } | null
   setReviewAttemptData: (data: AppState['reviewAttemptData']) => void
+  pendingTutorContext: string | null
+  setPendingTutorContext: (ctx: string | null) => void
+  pendingNoteData: { title: string; content: string } | null
+  setPendingNoteData: (data: { title: string; content: string } | null) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -85,4 +89,8 @@ export const useAppStore = create<AppState>((set) => ({
   setPreselectedQuizTitle: (title) => set({ preselectedQuizTitle: title }),
   reviewAttemptData: null,
   setReviewAttemptData: (data) => set({ reviewAttemptData: data }),
+  pendingTutorContext: null,
+  setPendingTutorContext: (ctx) => set({ pendingTutorContext: ctx }),
+  pendingNoteData: null,
+  setPendingNoteData: (data) => set({ pendingNoteData: data }),
 }))

@@ -150,7 +150,7 @@ html {
 
 /* Focus visible ring */
 *:focus-visible {
-  outline: 2px solid oklch(0.646 0.222 41.116);
+  outline: 2px solid oklch(0.65 0.08 160);
   outline-offset: 2px;
   border-radius: 4px;
 }
