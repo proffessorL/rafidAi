@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
 export type PageKey = 
   | 'dashboard' 
@@ -70,27 +71,38 @@ interface AppState {
   setPendingNoteData: (data: { title: string; content: string } | null) => void
 }
 
-export const useAppStore = create<AppState>((set) => ({
-  activePage: 'dashboard',
-  setActivePage: (page) => set({ activePage: page, sidebarOpen: false }),
-  sidebarOpen: false,
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
-  currentUser: null,
-  setCurrentUser: (user) => set({ currentUser: user }),
-  breakReminder: { show: false, autoStartLongBreak: false },
-  triggerBreakReminder: () => set({ breakReminder: { show: true, autoStartLongBreak: true } }),
-  dismissBreakReminder: () => set({ breakReminder: { show: false, autoStartLongBreak: false } }),
-  preselectedQuizTopic: null,
-  setPreselectedQuizTopic: (topic) => set({ preselectedQuizTopic: topic }),
-  preselectedQuizTopicTitle: null,
-  setPreselectedQuizTopicTitle: (title) => set({ preselectedQuizTopicTitle: title }),
-  preselectedQuizTitle: null,
-  setPreselectedQuizTitle: (title) => set({ preselectedQuizTitle: title }),
-  reviewAttemptData: null,
-  setReviewAttemptData: (data) => set({ reviewAttemptData: data }),
-  pendingTutorContext: null,
-  setPendingTutorContext: (ctx) => set({ pendingTutorContext: ctx }),
-  pendingNoteData: null,
-  setPendingNoteData: (data) => set({ pendingNoteData: data }),
-}))
+export const useAppStore = create<AppState>()(
+  persist(
+    (set) => ({
+      activePage: 'dashboard',
+      setActivePage: (page) => set({ activePage: page, sidebarOpen: false }),
+      sidebarOpen: false,
+      setSidebarOpen: (open) => set({ sidebarOpen: open }),
+      toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+      currentUser: null,
+      setCurrentUser: (user) => set({ currentUser: user }),
+      breakReminder: { show: false, autoStartLongBreak: false },
+      triggerBreakReminder: () => set({ breakReminder: { show: true, autoStartLongBreak: true } }),
+      dismissBreakReminder: () => set({ breakReminder: { show: false, autoStartLongBreak: false } }),
+      preselectedQuizTopic: null,
+      setPreselectedQuizTopic: (topic) => set({ preselectedQuizTopic: topic }),
+      preselectedQuizTopicTitle: null,
+      setPreselectedQuizTopicTitle: (title) => set({ preselectedQuizTopicTitle: title }),
+      preselectedQuizTitle: null,
+      setPreselectedQuizTitle: (title) => set({ preselectedQuizTitle: title }),
+      reviewAttemptData: null,
+      setReviewAttemptData: (data) => set({ reviewAttemptData: data }),
+      pendingTutorContext: null,
+      setPendingTutorContext: (ctx) => set({ pendingTutorContext: ctx }),
+      pendingNoteData: null,
+      setPendingNoteData: (data) => set({ pendingNoteData: data }),
+    }),
+    {
+      name: 'app-storage',
+      partialize: (state) => ({
+        activePage: state.activePage,
+        sidebarOpen: state.sidebarOpen,
+      }),
+    }
+  )
+)
