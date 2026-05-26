@@ -15,7 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import LeftPanel from './LeftPanel'
 import CenterPanel from './CenterPanel'
 import RightPanel from './RightPanel'
-import type { QuizAttempt, QuizQuestion, MistakeExplanationData, MisconceptionRecord, RemediationExerciseData, MistakeTypeEnum, KnowledgeGraphNode, KnowledgeGraphEdge } from './types'
+import type { QuizAttempt, QuizQuestion, MistakeExplanationData, MisconceptionRecord, RemediationExerciseData, MistakeTypeEnum } from './types'
 import { Send, MessageSquare, GraduationCap, Stethoscope, BarChart3, BookOpen, AlertCircle, RefreshCw, X, PanelLeft, LayoutDashboard } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
@@ -90,8 +90,6 @@ export default function ExplainMistake() {
   const [misconceptions, setMisconceptions] = useState<MisconceptionRecord[]>([])
   const [exercises, setExercises] = useState<RemediationExerciseData[]>([])
   const [rightLoading, setRightLoading] = useState(false)
-  const [knowledgeGraphData, setKnowledgeGraphData] = useState<{ nodes: KnowledgeGraphNode[]; edges: KnowledgeGraphEdge[] }>({ nodes: [], edges: [] })
-
   const [selectedAttemptId, setSelectedAttemptId] = useState<string>('')
   const [selectedQuestionId, setSelectedQuestionId] = useState<number | null>(null)
   const [followUpInput, setFollowUpInput] = useState('')
@@ -260,15 +258,10 @@ export default function ExplainMistake() {
         setExplanationsLoading(false)
 
         const allExercises: RemediationExerciseData[] = []
-        const allNodes: KnowledgeGraphNode[] = []
-        const allEdges: KnowledgeGraphEdge[] = []
         Object.values(expMap).forEach((exp) => {
           if (exp.remediationExercises?.length) allExercises.push(...exp.remediationExercises)
-          if (exp.knowledgeNode) allNodes.push(exp.knowledgeNode)
-          if (exp.knowledgeEdges?.length) allEdges.push(...exp.knowledgeEdges)
         })
         setExercises(allExercises)
-        if (allNodes.length > 0) setKnowledgeGraphData({ nodes: allNodes, edges: allEdges })
         // Auto-select the first wrong question so per-question AI fetch triggers
         if (selectedQuestionId == null) {
           const firstWrong = apiQuestions.find((q: any) => !q.isCorrect)
@@ -303,14 +296,10 @@ export default function ExplainMistake() {
           const updated = { ...prev }
           const apiExps = data.explanations || []
           const newExercises: RemediationExerciseData[] = []
-          const newNodes: KnowledgeGraphNode[] = []
-          const newEdges: KnowledgeGraphEdge[] = []
           apiExps.forEach((apiExp: any) => {
             const mapped = mapApiExplanationToMistakeExplanationData(apiExp)
             updated[`${selectedAttemptId}-${apiExp.questionId}`] = mapped
             if (mapped.remediationExercises?.length) newExercises.push(...mapped.remediationExercises)
-            if (mapped.knowledgeNode) newNodes.push(mapped.knowledgeNode)
-            if (mapped.knowledgeEdges?.length) newEdges.push(...mapped.knowledgeEdges)
           })
           if (newExercises.length > 0) {
             setExercises((prevEx) => {
@@ -318,12 +307,6 @@ export default function ExplainMistake() {
               const deduped = newExercises.filter((e) => !existingIds.has(e.id))
               return [...prevEx, ...deduped]
             })
-          }
-          if (newNodes.length > 0) {
-            setKnowledgeGraphData((prevKg) => ({
-              nodes: [...prevKg.nodes, ...newNodes],
-              edges: [...prevKg.edges, ...newEdges],
-            }))
           }
           return updated
         })
@@ -606,7 +589,6 @@ export default function ExplainMistake() {
                   misconceptions={misconceptions}
                   exercises={exercises}
                   loading={rightLoading}
-                  knowledgeGraphData={knowledgeGraphData}
                   onCompleteExercise={handleCompleteExercise}
                   activeExplanation={selectedExplanation}
                   question={selectedQuestion}
@@ -618,16 +600,11 @@ export default function ExplainMistake() {
                       .then((res) => res.json())
                       .then((data) => {
                         const newExercises: RemediationExerciseData[] = []
-                        const newNodes: KnowledgeGraphNode[] = []
-                        const newEdges: KnowledgeGraphEdge[] = []
                         ;(data.explanations || []).forEach((apiExp: any) => {
                           const mapped = mapApiExplanationToMistakeExplanationData(apiExp)
                           if (mapped.remediationExercises?.length) newExercises.push(...mapped.remediationExercises)
-                          if (mapped.knowledgeNode) newNodes.push(mapped.knowledgeNode)
-                          if (mapped.knowledgeEdges?.length) newEdges.push(...mapped.knowledgeEdges)
                         })
                         setExercises((prev) => [...prev, ...newExercises])
-                        setKnowledgeGraphData((prev) => ({ nodes: [...prev.nodes, ...newNodes], edges: [...prev.edges, ...newEdges] }))
                         setExplanationsLoading(false)
                       })
                       .catch(() => setExplanationsLoading(false))
@@ -743,7 +720,6 @@ export default function ExplainMistake() {
                 misconceptions={misconceptions}
                 exercises={exercises}
                 loading={rightLoading}
-                knowledgeGraphData={knowledgeGraphData}
                 onCompleteExercise={handleCompleteExercise}
                 activeExplanation={selectedExplanation}
                 question={selectedQuestion}
@@ -755,16 +731,11 @@ export default function ExplainMistake() {
                     .then((res) => res.json())
                     .then((data) => {
                       const newExercises: RemediationExerciseData[] = []
-                      const newNodes: KnowledgeGraphNode[] = []
-                      const newEdges: KnowledgeGraphEdge[] = []
                       ;(data.explanations || []).forEach((apiExp: any) => {
                         const mapped = mapApiExplanationToMistakeExplanationData(apiExp)
                         if (mapped.remediationExercises?.length) newExercises.push(...mapped.remediationExercises)
-                        if (mapped.knowledgeNode) newNodes.push(mapped.knowledgeNode)
-                        if (mapped.knowledgeEdges?.length) newEdges.push(...mapped.knowledgeEdges)
                       })
                       setExercises((prev) => [...prev, ...newExercises])
-                      setKnowledgeGraphData((prev) => ({ nodes: [...prev.nodes, ...newNodes], edges: [...prev.edges, ...newEdges] }))
                       setExplanationsLoading(false)
                     })
                     .catch(() => setExplanationsLoading(false))

@@ -6,8 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
-import KnowledgeGraph from './KnowledgeGraph'
-import type { MisconceptionRecord, RemediationExerciseData, KnowledgeGraphNode, KnowledgeGraphEdge, MistakeExplanationData, QuizQuestion } from './types'
+import type { MisconceptionRecord, RemediationExerciseData, MistakeExplanationData, QuizQuestion } from './types'
 import {
   Brain,
   TrendingUp,
@@ -26,7 +25,6 @@ interface RightPanelProps {
   misconceptions: MisconceptionRecord[]
   exercises: RemediationExerciseData[]
   loading: boolean
-  knowledgeGraphData: { nodes: KnowledgeGraphNode[]; edges: KnowledgeGraphEdge[] }
   onCompleteExercise: (exerciseId: string) => void
   onGenerateExercises?: () => void
   activeExplanation?: MistakeExplanationData | null
@@ -41,7 +39,7 @@ const recoveryStatusConfig: Record<string, { label: string; color: string; icon:
   REVIEWING: { label: 'Reviewing', color: 'text-violet-600 bg-violet-500/10', icon: '↻' },
 }
 
-export default function RightPanel({ misconceptions, exercises, loading, knowledgeGraphData, onCompleteExercise, onGenerateExercises, activeExplanation, question }: RightPanelProps) {
+export default function RightPanel({ misconceptions, exercises, loading, onCompleteExercise, onGenerateExercises, activeExplanation, question }: RightPanelProps) {
   const [expandedMisconception, setExpandedMisconception] = useState<string | null>(null)
   const [showAllMisconceptions, setShowAllMisconceptions] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -239,21 +237,14 @@ export default function RightPanel({ misconceptions, exercises, loading, knowled
             </CardTitle>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
-          {knowledgeGraphData.nodes.length > 0 && (
-            <div className="h-[260px] w-full">
-              <KnowledgeGraph nodes={knowledgeGraphData.nodes} edges={knowledgeGraphData.edges} />
-            </div>
-          )}
+        <CardContent className="p-3">
           {activeExplanation && (gapsLoading ? (
-            <div className={`px-3 pb-3 ${knowledgeGraphData.nodes.length > 0 ? 'pt-2 border-t border-border/50' : 'pt-3'}`}>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="size-3 animate-spin" />
-                <span className="text-[11px]">Analyzing knowledge gaps...</span>
-              </div>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="size-3 animate-spin" />
+              <span className="text-[11px]">Analyzing knowledge gaps...</span>
             </div>
           ) : aiGaps.length > 0 ? (
-            <div className={`px-3 ${knowledgeGraphData.nodes.length > 0 ? 'pt-2 border-t border-border/50' : 'pt-3'}`}>
+            <div>
               <div className="space-y-1">
                 {aiGaps.map((point, i) => (
                   <div key={i} className="flex items-start gap-2">
