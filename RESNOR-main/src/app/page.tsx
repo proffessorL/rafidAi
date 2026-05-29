@@ -28,7 +28,7 @@ import {
   Activity, Trophy, Sparkles,
   BookOpen, Target, Zap, LayoutDashboard,
   CheckCheck, CheckCircle2, MessageSquare, Award, Star,
-  Timer, Users, StickyNote,
+  Timer, Users, StickyNote, Clock,
   Library, CalendarDays, UserCircle, Settings,
   FolderOpen, LogOut, ChevronDown,
 } from 'lucide-react'
@@ -176,7 +176,7 @@ function QuickStats() {
   const { currentUser } = useAppStore()
   const authUser = useAuthStore((s) => s.user)
   const isTeacher = currentUser?.role === 'teacher'
-  const [stats, setStats] = useState({ streak: 0, quizAvg: 0, done: 0 })
+  const [stats, setStats] = useState({ streak: 0, quizAvg: 0, done: 0, screenTime: '' })
 
   useEffect(() => {
     if (!authUser?.id || isTeacher) return
@@ -189,16 +189,18 @@ function QuickStats() {
         fetch(`/api/gamification/streak-calendar?student_id=${authUser.id}&year=${year}&month=${month}`).then(r => r.json()),
         fetch(`/api/quiz/history?student_id=${authUser.id}`).then(r => r.json()),
         fetch(`/api/gamification/stats?student_id=${authUser.id}`).then(r => r.json()),
+        fetch(`/api/engagement/screen-time?student_id=${authUser.id}`).then(r => r.json().catch(() => ({}))),
       ])
-        .then(([streakData, quizData, statsData]) => {
+        .then(([streakData, quizData, statsData, screenData]) => {
           const quizAvg = quizData.attempts?.length
             ? Math.round(quizData.attempts.reduce((sum: number, a: any) => sum + a.score, 0) / quizData.attempts.length)
             : 0
-          setStats({
+          setStats((prev) => ({
             streak: streakData.currentStreak ?? 0,
             quizAvg,
             done: statsData.materialsDone ?? 0,
-          })
+            screenTime: screenData?.today?.display || prev.screenTime,
+          }))
         })
         .catch(() => {})
     }
@@ -244,7 +246,7 @@ function QuickStats() {
 
   return (
     <div className="px-3 pb-2">
-      <div className="grid grid-cols-3 gap-2 rounded-xl bg-muted/40 p-2.5">
+      <div className="grid grid-cols-4 gap-2 rounded-xl bg-muted/40 p-2.5">
         <div className="flex flex-col items-center gap-0.5 py-1">
           <div className="flex items-center gap-1">
             <Flame className="w-3.5 h-3.5 text-amber-500" />
@@ -265,6 +267,13 @@ function QuickStats() {
             <span className="text-sm font-bold text-teal-600 dark:text-teal-400">{stats.done}</span>
           </div>
           <span className="text-[9px] text-muted-foreground font-medium">Done</span>
+        </div>
+        <div className="flex flex-col items-center gap-0.5 py-1">
+          <div className="flex items-center gap-1">
+            <Clock className="w-3.5 h-3.5 text-violet-500" />
+            <span className="text-sm font-bold text-violet-600 dark:text-violet-400">{stats.screenTime || '--'}</span>
+          </div>
+          <span className="text-[9px] text-muted-foreground font-medium">Today</span>
         </div>
       </div>
     </div>

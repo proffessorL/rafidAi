@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "seed:leaderboard": "npx tsx prisma/seed-leaderboard.ts",
-    "seed:auth": "npx tsx prisma/seed-auth.ts"
+    "seed:auth": "npx tsx prisma/seed-auth.ts",
+    "seed:engagement": "npx tsx scripts/seed-engagement.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
