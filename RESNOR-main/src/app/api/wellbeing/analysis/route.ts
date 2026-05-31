@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     const sevenDaysAgo = new Date(now - 7 * 86400000)
     const twentyEightDaysAgo = new Date(now - 28 * 86400000)
 
-    // Parallel: all independent DB queries at once
+    // Parallel: all independent DB queries at once (9 queries + predict sub-queries)
     const [
       moodEntries,
       engagement,
@@ -24,21 +24,15 @@ export async function GET(request: Request) {
       journalCount,
       recentTelemetry,
       quizAttempts,
-      moodEntriesAsc,
-      focusSessions7d,
-      focusSessions28d,
     ] = await Promise.all([
       db.moodEntry.findMany({ where: { studentId }, orderBy: { createdAt: 'desc' }, take: 14 }),
       db.engagementScore.findUnique({ where: { studentId } }),
       db.streak.findUnique({ where: { studentId } }),
-      db.focusSession.findMany({ where: { studentId }, orderBy: { startedAt: 'desc' }, take: 20 }),
+      db.focusSession.findMany({ where: { studentId }, orderBy: { startedAt: 'desc' }, take: 100 }),
       db.burnoutPrediction.findFirst({ where: { studentId }, orderBy: { analyzedAt: 'desc' } }),
       db.wellbeingJournal.count({ where: { studentId, createdAt: { gte: sevenDaysAgo } } }),
-      db.telemetryRecord.findMany({ where: { studentId }, orderBy: { createdAt: 'desc' }, take: 200 }),
+      db.telemetryRecord.findMany({ where: { studentId }, orderBy: { createdAt: 'desc' }, take: 100 }),
       db.quizAttempt.findMany({ where: { studentId }, orderBy: { completedAt: 'desc' }, take: 10 }),
-      db.moodEntry.findMany({ where: { studentId, createdAt: { gte: sevenDaysAgo } }, orderBy: { createdAt: 'asc' } }),
-      db.focusSession.findMany({ where: { studentId, startedAt: { gte: sevenDaysAgo } }, orderBy: { startedAt: 'asc' } }),
-      db.focusSession.findMany({ where: { studentId, startedAt: { gte: twentyEightDaysAgo } }, orderBy: { startedAt: 'asc' } }),
     ])
 
     // --- Compute wellbeing score (no DB queries left) ---
@@ -73,10 +67,11 @@ export async function GET(request: Request) {
       ? Math.min(100, Math.round((streak.currentStreak / 30) * 100))
       : 30
 
-    const focusTotal = focusSessions.length
-    const focusCompleted = focusSessions.filter(s => s.completed).length
+    const recentFocus20 = focusSessions.slice(0, 20)
+    const focusTotal = recentFocus20.length
+    const focusCompleted = recentFocus20.filter(s => s.completed).length
     const focusCompletionRate = focusTotal > 0 ? Math.round((focusCompleted / focusTotal) * 100) : 0
-    const focusMinutes = focusSessions.reduce((s, e) => s + Math.round(e.actualSeconds / 60), 0)
+    const focusMinutes = recentFocus20.reduce((s, e) => s + Math.round(e.actualSeconds / 60), 0)
     const focusScore = focusTotal > 0
       ? Math.round(focusCompletionRate * 0.6 + Math.min(focusMinutes / 10, 40))
       : 30
@@ -126,6 +121,10 @@ export async function GET(request: Request) {
     }
 
     // --- Chart data (all from already-fetched arrays, no DB hits) ---
+    const moodEntriesAsc = [...moodEntries].reverse().filter(e => e.createdAt >= sevenDaysAgo)
+    const focusSessions7d = focusSessions.filter(s => new Date(s.startedAt) >= sevenDaysAgo)
+    const focusSessions28d = focusSessions.filter(s => new Date(s.startedAt) >= twentyEightDaysAgo)
+
     const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
     const moodTrend = dayLabels.map((_, i) => {
       const date = new Date(now - (6 - i) * 86400000).toDateString()

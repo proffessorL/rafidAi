@@ -26,8 +26,8 @@ export async function GET(request: Request) {
         select: { activeSeconds: true, createdAt: true },
       }),
       db.moodEntry.findMany({ where: { studentId }, orderBy: { createdAt: 'desc' }, take: 7 }),
-      db.focusSession.findMany({ where: { studentId }, orderBy: { startedAt: 'desc' }, take: 20 }),
-      db.quizAttempt.findMany({ where: { studentId }, orderBy: { completedAt: 'desc' }, take: 5 }),
+      db.focusSession.findMany({ where: { studentId }, orderBy: { startedAt: 'desc' }, take: 50 }),
+      db.quizAttempt.findMany({ where: { studentId }, orderBy: { completedAt: 'desc' }, take: 3 }),
       predict(studentId),
     ])
 
