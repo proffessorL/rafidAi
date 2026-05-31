@@ -13,7 +13,10 @@
     "db:reset": "prisma migrate reset",
     "seed:leaderboard": "npx tsx prisma/seed-leaderboard.ts",
     "seed:auth": "npx tsx prisma/seed-auth.ts",
-    "seed:engagement": "npx tsx scripts/seed-engagement.ts"
+    "seed:engagement": "npx tsx scripts/seed-engagement.ts",
+    "seed:burnout": "npx tsx scripts/seed-burnout.ts",
+    "seed:trend": "npx tsx scripts/seed-trend.ts",
+    "seed:usage": "npx tsx scripts/seed-usage.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

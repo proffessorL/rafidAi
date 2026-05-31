@@ -31,7 +31,7 @@ const searchableItems: SearchableItem[] = [
   { key: 'dashboard', label: 'Growth Dashboard', icon: BarChart3, group: 'Features', keywords: ['stats', 'analytics', 'progress', 'growth', 'charts', 'performance'] },
   { key: 'tutor', label: 'AI Tutor', icon: Bot, group: 'Features', keywords: ['chat', 'ask', 'help', 'question', 'assistant', 'learn'] },
   { key: 'quiz', label: 'Quiz Generator', icon: Brain, group: 'Features', keywords: ['test', 'exam', 'practice', 'question', 'quiz', 'assessment'] },
-  { key: 'cgpa', label: 'CGPA Prediction', icon: LineChart, group: 'Features', keywords: ['gpa', 'grade', 'score', 'prediction', 'academic'] },
+  { key: 'cgpa', label: 'Academic GPS', icon: LineChart, group: 'Features', keywords: ['gpa', 'grade', 'score', 'prediction', 'academic', 'cgpa', 'target', 'peers'] },
   { key: 'digital-twin', label: 'Digital Twin', icon: Sparkles, group: 'Features', keywords: ['simulation', 'predict', 'what-if', 'scenario', 'model'] },
   { key: 'explain-mistake', label: 'Explain My Mistake', icon: Search, group: 'Features', keywords: ['error', 'wrong', 'answer', 'explanation', 'learn', 'fix'] },
   { key: 'engagement', label: 'Engagement Tracker', icon: Activity, group: 'Features', keywords: ['passive', 'detection', 'attention', 'focus', 'time'] },
@@ -62,7 +62,7 @@ const topicItems = [
 const recentSearches = [
   'Data Structures quiz',
   'AI Tutor',
-  'CGPA',
+  'Academic GPS',
 ]
 
 export default function SearchCommand() {

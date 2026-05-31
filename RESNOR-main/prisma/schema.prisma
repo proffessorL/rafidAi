@@ -41,6 +41,18 @@ model User {
   remediationExercises RemediationExercise[]
   followUpMessages   FollowUpMessage[]
   studyNotes         StudyNote[]
+  moodEntries        MoodEntry[]
+  wellbeingJournals  WellbeingJournal[]
+  mentorMessages     MentorMessage[]
+  focusSessions      FocusSession[]
+  burnoutPredictions BurnoutPrediction[]
+  burnoutCheckIns    BurnoutCheckIn[]
+  revisionPlans      RevisionPlan[]
+  academicRisks      AcademicRisk[]
+  companionInteractions CompanionInteraction[]
+  voiceInteractions  VoiceInteraction[]
+  studyGroupMembers  StudyGroupMember[]
+  wellbeingAnalytics WellbeingAnalytics?
 }
 
 model AuthSession {
@@ -500,4 +512,193 @@ model FollowUpMessage {
 
   @@index([studentId])
   @@index([studentId, createdAt])
+}
+
+model MoodEntry {
+  id        String   @id @default(cuid())
+  studentId String
+  mood      String   // happy, normal, stressed, burned_out, anxious
+  note      String?
+  score     Int      @default(5) // 1-10
+  createdAt DateTime @default(now())
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, createdAt])
+}
+
+model WellbeingJournal {
+  id          String   @id @default(cuid())
+  studentId   String
+  title       String
+  content     String
+  emotionTag  String?  // happy, sad, anxious, stressed, grateful, etc
+  isPrivate   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, createdAt])
+}
+
+model MentorMessage {
+  id        String   @id @default(cuid())
+  studentId String
+  role      String   // user, mentor
+  content   String
+  category  String?  // support, advice, motivation, warning
+  createdAt DateTime @default(now())
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, createdAt])
+}
+
+model FocusSession {
+  id            String   @id @default(cuid())
+  studentId     String
+  type          String   @default("pomodoro") // pomodoro, deep_focus, quick
+  duration      Int      @default(25) // planned minutes
+  actualSeconds Int      @default(0)
+  completed     Boolean  @default(false)
+  distractionScore Float? @default(0)
+  notes         String?
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, startedAt])
+}
+
+model BurnoutPrediction {
+  id             String   @id @default(cuid())
+  studentId      String
+  riskPercentage Float    @default(0)
+  riskLevel      String   @default("low") // low, moderate, high, severe
+  factors        String?  // JSON array of contributing factors
+  recommendations String? // JSON array of recommendations
+  analyzedAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, analyzedAt])
+}
+
+model BurnoutCheckIn {
+  id           String   @id @default(cuid())
+  studentId    String
+  rating       Int      // 1-5 self-reported burnout
+  stressRating Int?     // 1-5 self-reported stress (calm → overwhelmed)
+  riskScore    Int?     // snapshot of their risk score at check-in time
+  riskLevel    String?  // snapshot of their risk level
+  fingerprint  String?  // Stores JSON of personalized Fingerprint
+  createdAt    DateTime @default(now())
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, createdAt])
+}
+
+model WellbeingAnalytics {
+  id                String   @id @default(cuid())
+  studentId         String   @unique
+  wellbeingScore    Float    @default(75) // 0-100
+  stressScore       Float    @default(30) // 0-100
+  productivityScore Float    @default(70) // 0-100
+  burnoutRisk       Float    @default(10) // 0-100
+  consistencyScore  Float    @default(65) // 0-100
+  lastMood          String?  @default("normal")
+  studyBalance      Float    @default(50) // 0-100
+  updatedAt         DateTime @default(now())
+  createdAt         DateTime @default(now())
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model CompanionInteraction {
+  id              String   @id @default(cuid())
+  studentId       String
+  interactionType String   // greeting, encouragement, achievement, streak, reminder
+  message         String
+  isRead          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, createdAt])
+}
+
+model VoiceInteraction {
+  id          String   @id @default(cuid())
+  studentId   String
+  query       String
+  response    String
+  intent      String?  // productivity_check, burnout_check, subject_focus, etc
+  createdAt   DateTime @default(now())
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, createdAt])
+}
+
+model RevisionPlan {
+  id          String   @id @default(cuid())
+  studentId   String
+  topicId     String?
+  topicName   String
+  nextReview  DateTime
+  interval    Int      @default(1) // days until next review
+  difficulty  Float    @default(0.5) // 0-1
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, nextReview])
+}
+
+model AcademicRisk {
+  id            String   @id @default(cuid())
+  studentId     String
+  riskType      String   // cgpa_decline, attendance, exam_failure, productivity
+  probability   Float    @default(0) // 0-100
+  severity      String   @default("low")
+  indicator     String?  // What triggered this prediction
+  recommendation String?
+  analyzedAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, riskType, analyzedAt])
+}
+
+model StudyGroup {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  topic       String?
+  maxMembers  Int      @default(5)
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members StudyGroupMember[]
+}
+
+model StudyGroupMember {
+  id        String   @id @default(cuid())
+  groupId   String
+  studentId String
+  role      String   @default("member") // creator, admin, member
+  joinedAt  DateTime @default(now())
+
+  group   StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  student User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, studentId])
 }

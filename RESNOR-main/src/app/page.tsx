@@ -43,7 +43,7 @@ import { useTelemetry } from '@/hooks/useTelemetry'
 import GrowthDashboard from '@/components/dashboard/GrowthDashboard'
 import AITutor from '@/components/tutor/AITutor'
 import QuizGenerator from '@/components/quiz/QuizGenerator'
-import CGPAPrediction from '@/components/cgpa/CGPAPrediction'
+import AcademicGPS from '@/components/academic-gps/AcademicGPS'
 import DigitalTwin from '@/components/digital-twin/DigitalTwin'
 import ExplainMistake from '@/components/explain-mistake/ExplainMistake'
 import EngagementTracker from '@/components/engagement/EngagementTracker'
@@ -71,7 +71,7 @@ const navItems: { key: PageKey; label: string; icon: React.ElementType; group: s
   { key: 'dashboard', label: 'Growth Dashboard', icon: BarChart3, group: 'Analytics' },
   { key: 'tutor', label: 'AI Tutor', icon: Bot, group: 'AI Tools' },
   { key: 'quiz', label: 'Quiz Generator', icon: Brain, group: 'AI Tools' },
-  { key: 'cgpa', label: 'CGPA Prediction', icon: LineChart, group: 'Analytics' },
+  { key: 'cgpa', label: 'Academic GPS', icon: LineChart, group: 'Analytics' },
   { key: 'digital-twin', label: 'Digital Twin', icon: Sparkles, group: 'Simulation' },
   { key: 'explain-mistake', label: 'Explain My Mistake', icon: Search, group: 'AI Tools' },
   { key: 'engagement', label: 'Engagement Tracker', icon: Activity, group: 'Analytics' },
@@ -95,7 +95,7 @@ const pageLabels = (isTeacher: boolean): Record<PageKey, string> => ({
   'dashboard': 'Student Growth Dashboard',
   'tutor': 'AI Tutor',
   'quiz': 'AI Quiz Generator',
-  'cgpa': 'CGPA Prediction',
+  'cgpa': 'Academic GPS',
   'digital-twin': 'Digital Twin Simulation',
   'explain-mistake': 'Explain My Mistake',
   'engagement': 'Passive Learning Detection',
@@ -113,7 +113,6 @@ const pageLabels = (isTeacher: boolean): Record<PageKey, string> => ({
   'forum': 'Discussion Forum',
   'resources': 'Resource Library',
   'grades': 'Grade Tracker',
-  'exam-routine': 'Exam Routine',
 })
 
 // --- Notification mock data ---
@@ -601,7 +600,7 @@ function MobileTabBar() {
     { key: 'grades', label: 'Grades', icon: GraduationCap },
     { key: 'profile', label: 'Profile', icon: UserCircle },
     { key: 'notifications', label: 'Alerts', icon: Bell },
-    { key: 'cgpa', label: 'CGPA', icon: LineChart },
+    { key: 'cgpa', label: 'GPS', icon: LineChart },
     { key: 'digital-twin', label: 'Twin', icon: Sparkles },
     { key: 'wellbeing', label: 'Wellbeing', icon: Shield },
   ]
@@ -854,7 +853,7 @@ const pageComponents: Record<PageKey, React.ComponentType> = {
   'dashboard': GrowthDashboard,
   'tutor': AITutor,
   'quiz': QuizGenerator,
-  'cgpa': CGPAPrediction,
+  'cgpa': AcademicGPS,
   'digital-twin': DigitalTwin,
   'explain-mistake': ExplainMistake,
   'engagement': EngagementTracker,
