@@ -936,7 +936,8 @@ function ScreenTimeBadge() {
   useEffect(() => {
     if (!authUser?.id) return
     const fetchTime = () => {
-      fetch(`/api/gamification/screen-time-today?student_id=${authUser.id}`)
+      const tz = -new Date().getTimezoneOffset()
+      fetch(`/api/gamification/screen-time-today?student_id=${authUser.id}&tz=${tz}`)
         .then((r) => r.json())
         .then((data) => { if (typeof data.totalSeconds === 'number') setSeconds(data.totalSeconds) })
         .catch(() => {})
