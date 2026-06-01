@@ -21,7 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
-import { useTheme } from 'next-themes'
+import { useTheme } from '@/components/theme-provider'
 import {
   BarChart3, Bot, Brain, Flame, Bell, GraduationCap,
   LineChart, Search, Shield, Sun, Moon, Menu, AlertTriangle,
@@ -43,7 +43,6 @@ import { useTelemetry } from '@/hooks/useTelemetry'
 import GrowthDashboard from '@/components/dashboard/GrowthDashboard'
 import AITutor from '@/components/tutor/AITutor'
 import QuizGenerator from '@/components/quiz/QuizGenerator'
-import AcademicGPS from '@/components/academic-gps/AcademicGPS'
 import DigitalTwin from '@/components/digital-twin/DigitalTwin'
 import ExplainMistake from '@/components/explain-mistake/ExplainMistake'
 import EngagementTracker from '@/components/engagement/EngagementTracker'
@@ -63,6 +62,7 @@ import TeacherProfileSettings from '@/components/profile/TeacherProfileSettings'
 import DiscussionForum from '@/components/forum/DiscussionForum'
 import ResourceLibrary from '@/components/resources/ResourceLibrary'
 import GradeTracker from '@/components/grades/GradeTracker'
+import PeerComparison from '@/components/peer-comparison/PeerComparison'
 
 // --- AI Tools Groups ---
 const aiToolGroups = ['AI Tools', 'Wellbeing', 'Analytics']
@@ -71,10 +71,10 @@ const navItems: { key: PageKey; label: string; icon: React.ElementType; group: s
   { key: 'dashboard', label: 'Growth Dashboard', icon: BarChart3, group: 'Analytics' },
   { key: 'tutor', label: 'AI Tutor', icon: Bot, group: 'AI Tools' },
   { key: 'quiz', label: 'Quiz Generator', icon: Brain, group: 'AI Tools' },
-  { key: 'cgpa', label: 'Academic GPS', icon: LineChart, group: 'Analytics' },
   { key: 'digital-twin', label: 'Digital Twin', icon: Sparkles, group: 'Simulation' },
   { key: 'explain-mistake', label: 'Explain My Mistake', icon: Search, group: 'AI Tools' },
   { key: 'engagement', label: 'Engagement Tracker', icon: Activity, group: 'Analytics' },
+  { key: 'peer-comparison', label: 'CGPA Predictor', icon: Users, group: 'Analytics' },
   { key: 'gamification', label: 'Gamification', icon: Trophy, group: 'Progress' },
   { key: 'notifications', label: 'Notifications', icon: Bell, group: 'System' },
   { key: 'teacher', label: 'Teacher Dashboard', icon: GraduationCap, group: 'Admin' },
@@ -95,9 +95,9 @@ const pageLabels = (isTeacher: boolean): Record<PageKey, string> => ({
   'dashboard': 'Student Growth Dashboard',
   'tutor': 'AI Tutor',
   'quiz': 'AI Quiz Generator',
-  'cgpa': 'Academic GPS',
   'digital-twin': 'Digital Twin Simulation',
   'explain-mistake': 'Explain My Mistake',
+  'peer-comparison': 'CGPA Predictor',
   'engagement': 'Passive Learning Detection',
   'gamification': 'Gamified Progress',
   'notifications': isTeacher ? 'Teacher Notifications' : 'Smart Notifications',
@@ -600,7 +600,7 @@ function MobileTabBar() {
     { key: 'grades', label: 'Grades', icon: GraduationCap },
     { key: 'profile', label: 'Profile', icon: UserCircle },
     { key: 'notifications', label: 'Alerts', icon: Bell },
-    { key: 'cgpa', label: 'GPS', icon: LineChart },
+    { key: 'peer-comparison', label: 'Predictor', icon: Users },
     { key: 'digital-twin', label: 'Twin', icon: Sparkles },
     { key: 'wellbeing', label: 'Wellbeing', icon: Shield },
   ]
@@ -853,9 +853,9 @@ const pageComponents: Record<PageKey, React.ComponentType> = {
   'dashboard': GrowthDashboard,
   'tutor': AITutor,
   'quiz': QuizGenerator,
-  'cgpa': AcademicGPS,
   'digital-twin': DigitalTwin,
   'explain-mistake': ExplainMistake,
+  'peer-comparison': PeerComparison,
   'engagement': EngagementTracker,
   'gamification': Gamification,
   'notifications': Notifications,
@@ -963,9 +963,9 @@ function ScreenTimeBadge() {
         {display}
       </div>
       <div className="absolute right-0 top-full mt-2 w-56 sm:w-64 p-3 rounded-xl border bg-popover text-popover-foreground text-xs shadow-lg opacity-0 group-hover/screen:opacity-100 transition-opacity pointer-events-none z-50">
-        <p className="font-medium mb-0.5">Focused Study Time</p>
+        <p className="font-medium mb-0.5">Total Study Time Today</p>
         <p className="text-muted-foreground leading-relaxed">
-          Only time spent actively on study pages (quiz, tutor, notes, wellbeing, etc.) with the tab in focus counts. Idle or non-study browsing is <strong>not</strong> included.
+          Total time spent on study pages (quiz, tutor, notes, wellbeing, etc.) today, including both active interaction and passive browsing time.
         </p>
       </div>
     </div>

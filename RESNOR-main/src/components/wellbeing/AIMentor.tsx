@@ -137,7 +137,7 @@ export default function AIMentor() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 border">
           <div className={`p-1.5 rounded-lg ${burnoutRisk < 30 ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}>
             <AlertTriangle className={`w-4 h-4 ${burnoutRisk < 30 ? 'text-emerald-500' : 'text-amber-500'}`} />
@@ -204,7 +204,7 @@ export default function AIMentor() {
                       <MessageCircle className="w-4 h-4 text-muted-foreground" />
                     )}
                   </div>
-                  <div className={`max-w-[75%] ${
+                  <div className={`max-w-[85%] md:max-w-[75%] ${
                     msg.role === 'user' ? 'text-right' : ''
                   }`}>
                     <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${

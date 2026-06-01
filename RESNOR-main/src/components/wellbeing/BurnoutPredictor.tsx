@@ -255,20 +255,18 @@ export default function BurnoutPredictor() {
           </div>
 
           <div className="py-6 space-y-6">
-            <div className="grid grid-cols-5 gap-2">
-              {energyOptions.map((opt) => (
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              {['1','2','3','4','5'].map((val) => (
                 <button
-                  key={opt.value}
-                  onClick={() => setSelectedEnergy(opt.value)}
-                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all duration-200 ${
-                    selectedEnergy === opt.value
-                      ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-md scale-105'
-                      : 'border-border bg-card hover:bg-muted/50 text-muted-foreground'
+                  key={val}
+                  onClick={() => setEnergyLevel(Number(val))}
+                  className={`p-2 rounded-lg text-center text-sm font-medium transition-all ${
+                    energyLevel === Number(val)
+                      ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 border-2'
+                      : 'bg-muted border border-transparent text-muted-foreground hover:bg-muted/80'
                   }`}
                 >
-                  <span className="text-2xl select-none">{opt.emoji}</span>
-                  <span className="text-xs font-semibold">{opt.label}</span>
-                  <span className="text-[9px] text-muted-foreground hidden sm:inline">{opt.desc}</span>
+                  {val}
                 </button>
               ))}
             </div>
@@ -293,20 +291,18 @@ export default function BurnoutPredictor() {
             </div>
 
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider pt-2">Current Stress Level</h3>
-            <div className="grid grid-cols-5 gap-2">
-              {stressOptions.map((opt) => (
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              {['1','2','3','4','5'].map((val) => (
                 <button
-                  key={opt.value}
-                  onClick={() => setSelectedStress(opt.value)}
-                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all duration-200 ${
-                    selectedStress === opt.value
-                      ? 'border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400 shadow-md scale-105'
-                      : 'border-border bg-card hover:bg-muted/50 text-muted-foreground'
+                  key={val}
+                  onClick={() => setStressLevel(Number(val))}
+                  className={`p-2 rounded-lg text-center text-sm font-medium transition-all ${
+                    stressLevel === Number(val)
+                      ? 'bg-rose-500/20 border-rose-500/50 text-rose-600 dark:text-rose-400 border-2'
+                      : 'bg-muted border border-transparent text-muted-foreground hover:bg-muted/80'
                   }`}
                 >
-                  <span className="text-2xl select-none">{opt.emoji}</span>
-                  <span className="text-xs font-semibold">{opt.label}</span>
-                  <span className="text-[9px] text-muted-foreground hidden sm:inline">{opt.desc}</span>
+                  {val}
                 </button>
               ))}
             </div>

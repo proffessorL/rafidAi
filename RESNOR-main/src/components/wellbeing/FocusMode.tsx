@@ -139,7 +139,7 @@ export default function FocusMode() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 border">
           <div className="p-1.5 rounded-lg bg-emerald-500/10">
             <Zap className="w-4 h-4 text-emerald-500" />

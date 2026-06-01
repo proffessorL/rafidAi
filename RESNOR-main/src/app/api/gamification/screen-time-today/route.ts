@@ -12,16 +12,12 @@ export async function GET(request: Request) {
     const studentId = searchParams.get('student_id')
     if (!studentId) return NextResponse.json({ error: 'student_id required' }, { status: 400 })
 
-    const tzOffset = parseInt(searchParams.get('tz') || '0')
     const now = new Date()
-    const localNow = new Date(now.getTime() + tzOffset * 60000)
-    localNow.setHours(0, 0, 0, 0)
-    const todayStart = new Date(localNow.getTime() - tzOffset * 60000)
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
     const result = await db.telemetryRecord.aggregate({
       where: {
         studentId,
-        tabFocused: true,
         pageId: { in: STUDY_PAGE_IDS },
         createdAt: { gte: todayStart },
       },

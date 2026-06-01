@@ -5,7 +5,6 @@ export type PageKey =
   | 'dashboard' 
   | 'tutor' 
   | 'quiz' 
-  | 'cgpa' 
   | 'digital-twin' 
   | 'explain-mistake' 
   | 'engagement' 
@@ -23,6 +22,7 @@ export type PageKey =
   | 'forum'
   | 'grades'
   | 'exam-routine'
+  | 'peer-comparison'
 
 interface AppState {
   activePage: PageKey

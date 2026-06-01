@@ -677,6 +677,31 @@ model AcademicRisk {
   @@index([studentId, riskType, analyzedAt])
 }
 
+model SemesterSnapshot {
+  id              String   @id @default(cuid())
+  studentId       String
+  studentName     String
+  semester        Int
+  cgpa            Float
+  quizAverage     Float
+  quizCount       Int
+  studyHours      Float
+  consistencyRate Float
+  interactionDensity Float
+  completionRate  Float
+  weakTopics      String?
+  courseCount     Int
+  attendanceAvg   Float
+  createdAt       DateTime @default(now())
+
+  @@index([studentId])
+  @@index([semester])
+  @@index([quizAverage])
+  @@index([cgpa])
+  @@index([consistencyRate])
+  @@index([studyHours])
+}
+
 model StudyGroup {
   id          String   @id @default(cuid())
   name        String

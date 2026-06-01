@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
-import { useTheme } from 'next-themes'
+import { useTheme } from '@/components/theme-provider'
 import {
   GraduationCap,
   Eye,

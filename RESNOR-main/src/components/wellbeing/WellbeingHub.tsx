@@ -5,10 +5,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Heart, Brain, Timer, Flame,
   MessageCircle, BookOpen, AlertTriangle,
-  ChevronLeft, Menu,
+  ChevronLeft, ChevronDown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import WellbeingDashboard from './WellbeingDashboard'
 import MoodTracker from './MoodTracker'
 import AIMentor from './AIMentor'
@@ -60,7 +63,7 @@ export default function WellbeingHub() {
     <>
       <div className="flex h-full gap-4">
         {/* Sidebar Navigation */}
-        <div className={`hidden md:flex flex-col shrink-0 transition-all duration-300 ${sidebarOpen ? 'w-56' : 'w-0 overflow-hidden'}`}>
+        <div className={`hidden md:flex flex-col shrink-0 transition-all duration-300 ${sidebarOpen ? 'w-48 lg:w-56' : 'w-0 overflow-hidden'}`}>
           <div className="space-y-1 p-2">
             <div className="flex items-center justify-between mb-3 px-2">
               <h2 className="text-sm font-semibold text-muted-foreground tracking-wide">AI WELLBEING</h2>
@@ -103,32 +106,42 @@ export default function WellbeingHub() {
           </div>
         </div>
 
-        {/* Mobile tab bar */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-lg border-t flex items-center gap-1 px-1 py-1 safe-area-bottom overflow-x-auto">
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setSidebarOpen(!sidebarOpen)}>
-            <Menu className="w-4 h-4" />
-          </Button>
-          {tabs.slice(0, 5).map((tab) => {
-            const Icon = tab.icon
-            const isActive = activeTab === tab.key
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors shrink-0 ${
-                  isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span className="text-[9px] font-medium">{tab.label}</span>
-              </button>
-            )
-          })}
-        </div>
-
         {/* Main Content */}
-        <div className="flex-1 min-w-0">
-          <ScrollArea className="h-full pb-20 md:pb-4">
+        <div className="flex-1 min-w-0 flex flex-col">
+          {/* Mobile menu button */}
+          <div className="md:hidden flex items-center px-3 py-1.5 border-b shrink-0">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium">
+                  {(() => {
+                    const ActiveIcon = tabs.find((t) => t.key === activeTab)?.icon || LayoutDashboard
+                    return <ActiveIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  })()}
+                  <span>{tabs.find((t) => t.key === activeTab)?.label}</span>
+                  <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-[180px]">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon
+                  const isActive = activeTab === tab.key
+                  return (
+                    <DropdownMenuItem
+                      key={tab.key}
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`gap-2 ${isActive ? 'text-emerald-600 dark:text-emerald-400 font-medium' : ''}`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span>{tab.label}</span>
+                      <span className="text-[10px] text-muted-foreground ml-auto">{tab.desc}</span>
+                    </DropdownMenuItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <ScrollArea className="flex-1">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}

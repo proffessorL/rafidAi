@@ -373,7 +373,7 @@ export async function GET(req: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Academic GPS error:', error)
-    return NextResponse.json({ error: 'Failed to load Academic GPS data' }, { status: 500 })
+    console.error('CGPA Predictor error:', error)
+    return NextResponse.json({ error: 'Failed to load CGPA Predictor data' }, { status: 500 })
   }
 }

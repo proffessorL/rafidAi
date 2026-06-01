@@ -84,7 +84,7 @@ Features they can use:
 - Pomodoro Timer (focus blocks with configurable length)
 - Focus Mode in Wellbeing (distraction-free session timer)
 - Growth Dashboard (goals + weak topic detection)
-- Academic GPS (subject readiness overview)`,
+- CGPA Predictor (subject readiness overview)`,
             },
             {
               role: 'user',

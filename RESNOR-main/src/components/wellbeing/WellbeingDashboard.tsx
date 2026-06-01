@@ -306,7 +306,7 @@ export default function WellbeingDashboard({ onEmergency }: WellbeingDashboardPr
                 <ReTooltip />
               </PieChart>
             </ResponsiveContainer>
-            <div className="grid grid-cols-3 gap-2 mt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-1">
               {(stressFactors.length > 0 ? stressFactors : defaultStressFactors).map((f) => (
                 <div key={f.name} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: f.color }} />

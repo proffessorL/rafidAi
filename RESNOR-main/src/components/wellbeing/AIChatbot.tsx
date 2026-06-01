@@ -181,7 +181,7 @@ export default function AIChatbot() {
                       <MessageCircle className="w-4 h-4 text-muted-foreground" />
                     )}
                   </div>
-                  <div className={`max-w-[75%] ${msg.role === 'user' ? 'text-right' : ''}`}>
+                  <div className={`max-w-[85%] md:max-w-[75%] ${msg.role === 'user' ? 'text-right' : ''}`}>
                     <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                       msg.role === 'user'
                         ? 'bg-primary text-primary-foreground rounded-tr-sm'
