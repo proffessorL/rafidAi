@@ -168,7 +168,7 @@ export default function StudentDetailModal({ studentId, studentName, open, onOpe
                   </h4>
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <div>
-                      <p className="text-[11px] text-muted-foreground">Consistency</p>
+                      <p className="text-[11px] text-muted-foreground">Focus Rate</p>
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
                           <div
@@ -279,7 +279,7 @@ export default function StudentDetailModal({ studentId, studentName, open, onOpe
                       badge={badgeForScore(wellbeing.score)}
                     />
                     <ScoreCard
-                      label="Consistency Score"
+                      label="Focus Rate Score"
                       value={Math.round(wellbeing.consistency)}
                       icon={Activity}
                       accent="bg-cyan-500/10 text-cyan-500"
