@@ -1,6 +1,15 @@
 import { db } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
 
+const STUDY_PAGE_IDS = [
+  'quiz', 'tutor', 'wellbeing', 'notes', 'gamification',
+  'planner', 'forum', 'explain-mistake', 'resources', 'leaderboard',
+]
+
+function toLocalDateStr(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -40,8 +49,54 @@ export async function GET(request: NextRequest) {
       : 0
     const highScoreQuizCount = attempts.filter(a => a.totalQuestions > 0 && (a.correctCount / a.totalQuestions) >= 0.8).length
 
-    // 5. Streak
-    const streak = await db.streak.findUnique({ where: { studentId } })
+    // 5. Streak (computed on-the-fly from telemetry, same as gamification calendar)
+    const streakStart = new Date()
+    streakStart.setFullYear(streakStart.getFullYear() - 1)
+    streakStart.setHours(0, 0, 0, 0)
+
+    const streakRecords = await db.telemetryRecord.findMany({
+      where: {
+        studentId,
+        tabFocused: true,
+        pageId: { in: STUDY_PAGE_IDS },
+        createdAt: { gte: streakStart },
+      },
+      select: { activeSeconds: true, createdAt: true },
+    })
+
+    const streakDayMap = new Map<string, number>()
+    for (const r of streakRecords) {
+      const dateKey = toLocalDateStr(r.createdAt)
+      streakDayMap.set(dateKey, (streakDayMap.get(dateKey) || 0) + r.activeSeconds)
+    }
+
+    const allDates: string[] = []
+    const d = new Date(streakStart)
+    while (d <= new Date()) {
+      allDates.push(toLocalDateStr(d))
+      d.setDate(d.getDate() + 1)
+    }
+
+    const studied = allDates.map((dateStr) => (streakDayMap.get(dateStr) || 0) >= 300)
+
+    let currentStreak = 0
+    for (let i = studied.length - 1; i >= 0; i--) {
+      if (studied[i]) currentStreak++
+      else break
+    }
+
+    let longestStreak = 0
+    let run = 0
+    for (const s of studied) {
+      if (s) {
+        run++
+        if (run > longestStreak) longestStreak = run
+      } else {
+        run = 0
+      }
+    }
+
+    const totalActiveDays = studied.filter(Boolean).length
 
     // 6. Engagement
     const engagement = await db.engagementScore.findUnique({ where: { studentId } })
@@ -106,9 +161,7 @@ export async function GET(request: NextRequest) {
       averageQuizScore: avgScore,
       totalQuizAttempts: attempts.length,
       highScoreQuizCount,
-      streak: streak
-        ? { current: streak.currentStreak, longest: streak.longestStreak, totalDays: streak.totalActiveDays }
-        : null,
+      streak: { current: currentStreak, longest: longestStreak, totalDays: totalActiveDays },
       totalTimeMinutes,
       materialsToday,
       weeklyActivity,

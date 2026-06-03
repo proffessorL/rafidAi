@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import Groq from 'groq-sdk'
 import { predict } from '@/lib/services/burnout-engine'
+import { analyzeJournalTone } from '@/lib/ai-digital-twin'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || '' })
 
@@ -13,6 +14,8 @@ export async function GET(request: Request) {
     const now = Date.now()
     const sevenDaysAgo = new Date(now - 7 * 86400000)
     const twentyEightDaysAgo = new Date(now - 28 * 86400000)
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
     // Parallel: all independent DB queries at once (9 queries + predict sub-queries)
     const [
@@ -21,17 +24,17 @@ export async function GET(request: Request) {
       streak,
       focusSessions,
       latestBurnout,
-      journalCount,
+      journalEntries,
       recentTelemetry,
       quizAttempts,
     ] = await Promise.all([
       db.moodEntry.findMany({ where: { studentId }, orderBy: { createdAt: 'desc' }, take: 14 }),
       db.engagementScore.findUnique({ where: { studentId } }),
       db.streak.findUnique({ where: { studentId } }),
-      db.focusSession.findMany({ where: { studentId }, orderBy: { startedAt: 'desc' }, take: 100 }),
+      db.focusSession.findMany({ where: { studentId }, orderBy: { startedAt: 'desc' }, take: 200 }),
       db.burnoutPrediction.findFirst({ where: { studentId }, orderBy: { analyzedAt: 'desc' } }),
-      db.wellbeingJournal.count({ where: { studentId, createdAt: { gte: sevenDaysAgo } } }),
-      db.telemetryRecord.findMany({ where: { studentId }, orderBy: { createdAt: 'desc' }, take: 100 }),
+      db.wellbeingJournal.findMany({ where: { studentId }, orderBy: { createdAt: 'desc' }, take: 20, select: { content: true, emotionTag: true, createdAt: true } }),
+      db.telemetryRecord.findMany({ where: { studentId }, orderBy: { createdAt: 'desc' }, take: 500 }),
       db.quizAttempt.findMany({ where: { studentId }, orderBy: { completedAt: 'desc' }, take: 10 }),
     ])
 
@@ -63,9 +66,41 @@ export async function GET(request: Request) {
     const engagementScore = engagement?.overallScore || 50
     const weeklyHours = engagement?.weeklyActiveHours || 0
 
-    const consistencyScore = streak
-      ? Math.min(100, Math.round((streak.currentStreak / 30) * 100))
-      : 30
+    const recentFocusDays = new Set(
+      focusSessions
+        .filter((s) => new Date(s.startedAt) >= thirtyDaysAgo)
+        .map((s) => new Date(s.startedAt).toDateString())
+    )
+    const recentTelemetryDays = new Set(
+      recentTelemetry
+        .filter((t) => new Date(t.createdAt) >= thirtyDaysAgo && t.activeSeconds > 0)
+        .map((t) => new Date(t.createdAt).toDateString())
+    )
+    const allActiveDays = new Set([...recentFocusDays, ...recentTelemetryDays])
+    const uniqueDayRatio = allActiveDays.size / 30
+
+    const sortedDays = Array.from(allActiveDays)
+      .map((d) => new Date(d))
+      .sort((a, b) => a.getTime() - b.getTime())
+
+    let maxStreak = 0
+    let currentStreak = 0
+    for (let i = 0; i < sortedDays.length; i++) {
+      if (i === 0) {
+        currentStreak = 1
+      } else {
+        const diffDays = Math.round((sortedDays[i].getTime() - sortedDays[i - 1].getTime()) / 86400000)
+        if (diffDays === 1) {
+          currentStreak++
+        } else {
+          currentStreak = 1
+        }
+      }
+      maxStreak = Math.max(maxStreak, currentStreak)
+    }
+    const streakRatio = maxStreak / 30
+
+    const consistencyScore = Math.min(100, Math.round((uniqueDayRatio * 0.6 + streakRatio * 0.4) * 100))
 
     const recentFocus20 = focusSessions.slice(0, 20)
     const focusTotal = recentFocus20.length
@@ -80,20 +115,20 @@ export async function GET(request: Request) {
       ? Math.round(latestBurnout.riskPercentage)
       : weeklyHours > 25 ? Math.min(80, Math.round((weeklyHours / 40) * 100)) : 15
 
-    const journalScore = Math.min(100, journalCount * 15)
+    const journalScore = (await analyzeJournalTone(journalEntries.slice(0, 10))) ?? Math.min(100, journalEntries.length * 15)
     const uniquePages = new Set(recentTelemetry.map(r => r.pageId)).size
     const diversityScore = Math.min(100, uniquePages * 12)
 
-    const recentQuizScores = quizAttempts.slice(0, 5).map(a => a.score)
+    const recentQuizScores = quizAttempts.slice(0, 10).map(a => a.score)
     const avgQuiz = recentQuizScores.length ? recentQuizScores.reduce((s, e) => s + e, 0) / recentQuizScores.length : 50
     const academicScore = Math.round(avgQuiz)
 
     const wellbeingScore = Math.round(
-      (moodScore * 0.12) + (moodStability * 0.05) +
+      (moodScore * 0.13) + (moodStability * 0.05) +
       (Math.max(0, 50 + moodTrendDelta) * 0.05) + (recoveryScore * 0.08) +
-      (engagementScore * 0.18) + (consistencyScore * 0.12) +
+      (engagementScore * 0.18) + (consistencyScore * 0.10) +
       (focusScore * 0.10) + ((100 - burnoutRisk) * 0.10) +
-      (journalScore * 0.05) + (diversityScore * 0.05) + (academicScore * 0.10)
+      (journalScore * 0.05) + (diversityScore * 0.05) + (academicScore * 0.11)
     )
 
     // --- KNN prediction (parallel with Groq) ---

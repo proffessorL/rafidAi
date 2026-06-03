@@ -454,7 +454,7 @@ export default function PeerComparison() {
             {[
               { label: 'Quiz Avg', rawValue: data.userProfile.quizAverage, suffix: '%', icon: Brain, trend: data.userProfile.quizAverage >= 60 ? 'up' as const : 'neutral' as const },
               { label: 'Quizzes Taken', rawValue: data.userProfile.quizCount, suffix: '', icon: BookOpen, trend: 'neutral' as const },
-              { label: 'Study Hours', rawValue: data.userProfile.studyHours, suffix: 'h', icon: Clock, trend: data.userProfile.studyHours >= 50 ? 'up' as const : 'neutral' as const },
+              { label: 'Weekly Study Hours', rawValue: data.userProfile.studyHours, suffix: 'h', icon: Clock, trend: data.userProfile.studyHours >= 50 ? 'up' as const : 'neutral' as const },
               { label: 'Consistency', rawValue: data.userProfile.consistencyRate, suffix: '%', icon: BarChart3, trend: data.userProfile.consistencyRate >= 50 ? 'up' as const : 'down' as const },
               { label: 'Completion', rawValue: data.userProfile.completionRate, suffix: '%', icon: Target, trend: data.userProfile.completionRate >= 50 ? 'up' as const : 'down' as const },
               { label: 'Interaction', rawValue: data.userProfile.interactionDensity, suffix: '', icon: Zap, trend: 'neutral' as const },

@@ -31,7 +31,7 @@ export async function GET(request: Request) {
       predict(studentId),
     ])
 
-    const weeklyHours = Math.round((telemetry7d.reduce((s, r) => s + r.activeSeconds, 0) / 3600) * 10) / 10
+    const weeklyHours = engagement?.weeklyActiveHours ?? 0
     const avgMood = recentMoods.length
       ? recentMoods.reduce((s, e) => s + e.score, 0) / recentMoods.length
       : 0

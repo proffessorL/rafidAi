@@ -11,7 +11,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'student_id is required' }, { status: 400 })
     }
 
-    const [attempts, progress, engagement, misconceptions, enrollments, wellbeing, recentMoods] = await Promise.all([
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+    const [attempts, progress, engagement, misconceptions, enrollments, wellbeing, recentMoods, focusSessions, telemetryRecords] = await Promise.all([
       db.quizAttempt.findMany({
         where: { studentId },
         orderBy: { completedAt: 'asc' },
@@ -33,21 +36,68 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
+      db.focusSession.findMany({
+        where: { studentId },
+        orderBy: { startedAt: 'desc' },
+        take: 200,
+      }),
+      db.telemetryRecord.findMany({
+        where: { studentId },
+        orderBy: { createdAt: 'desc' },
+        take: 500,
+      }),
     ])
 
     const completionRate = progress.length > 0
       ? progress.filter(p => p.completionStatus === 'done').length / progress.length
       : 0
 
-    const recentScores = attempts.slice(-5)
+    const recentScores = attempts.slice(-10)
     const avgRecentScore = recentScores.length > 0
       ? recentScores.reduce((s, a) => s + a.score, 0) / recentScores.length
       : 0
 
     const quizCount = attempts.length
-    const consistencyRate = engagement?.studyConsistencyRate || 50
-    const weeklyHours = engagement?.weeklyActiveHours || 5
-    const interactionDensity = engagement?.interactionDensity || 0
+
+    // --- Consistency (DT hybrid formula) ---
+    const recentFocusDays = new Set(
+      focusSessions
+        .filter((s) => new Date(s.startedAt) >= thirtyDaysAgo)
+        .map((s) => new Date(s.startedAt).toDateString())
+    )
+    const recentTelemetryDays = new Set(
+      telemetryRecords
+        .filter((t) => new Date(t.createdAt) >= thirtyDaysAgo && t.activeSeconds > 0)
+        .map((t) => new Date(t.createdAt).toDateString())
+    )
+    const allActiveDays = new Set([...recentFocusDays, ...recentTelemetryDays])
+    const uniqueDayRatio = allActiveDays.size / 30
+
+    const sortedDays = Array.from(allActiveDays)
+      .map((d) => new Date(d))
+      .sort((a, b) => a.getTime() - b.getTime())
+    let maxStreak = 0
+    let currentStreak = 0
+    for (let i = 0; i < sortedDays.length; i++) {
+      if (i === 0) { currentStreak = 1 } else {
+        const diffDays = Math.round((sortedDays[i].getTime() - sortedDays[i - 1].getTime()) / 86400000)
+        currentStreak = diffDays === 1 ? currentStreak + 1 : 1
+      }
+      maxStreak = Math.max(maxStreak, currentStreak)
+    }
+    const streakRatio = maxStreak / 30
+    const consistencyRate = Math.min(100, Math.round((uniqueDayRatio * 0.6 + streakRatio * 0.4) * 100))
+
+    // --- Study hours from canonical source (heartbeat writes to engagementScore) ---
+    const weeklyHours = engagement?.weeklyActiveHours ?? 0
+
+    // --- Interaction density from Telemetry ---
+    const recentTel = telemetryRecords.filter(
+      (t) => new Date(t.createdAt) >= thirtyDaysAgo
+    )
+    const interactionDensity = recentTel.length > 30
+      ? Math.round((recentTel.reduce((s, t) => s + t.interactionCount, 0) / recentTel.length) * 10) / 10
+      : 0
 
     const weakTopics = misconceptions.map(m => ({
       topic: m.conceptNodeId,
@@ -76,7 +126,7 @@ export async function GET(req: NextRequest) {
     const userProfile = {
       quizAverage: Math.round(avgRecentScore),
       quizCount,
-      studyHours: Math.round(weeklyHours * 4 * 4.5),
+      studyHours: weeklyHours,
       consistencyRate: Math.round(consistencyRate),
       interactionDensity,
       completionRate: Math.round(completionRate * 100),
@@ -367,7 +417,7 @@ export async function GET(req: NextRequest) {
 A student wants to compare themselves with senior peers who had similar profiles.
 
 CURRENT STUDENT'S PROFILE:
-- Quiz Average (last 5 quizzes): ${userProfile.quizAverage}%
+- Quiz Average (last 10 quizzes): ${userProfile.quizAverage}%
 - Total Quizzes Taken: ${userProfile.quizCount}
 - Estimated Total Study Hours: ${userProfile.studyHours}h
 - Study Consistency: ${userProfile.consistencyRate}%

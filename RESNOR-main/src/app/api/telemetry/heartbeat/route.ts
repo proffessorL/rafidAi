@@ -1,6 +1,11 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 
+const STUDY_PAGE_IDS = [
+  'quiz', 'tutor', 'wellbeing', 'notes', 'gamification',
+  'planner', 'forum', 'explain-mistake', 'resources', 'leaderboard',
+]
+
 export async function POST(request: Request) {
   try {
     const { student_id, page_id, active_seconds, scroll_percentage, interaction_count, tab_focused } = await request.json()
@@ -37,6 +42,16 @@ export async function POST(request: Request) {
       focusRate * 20             // Up to 20 pts for focus
     )
 
+    // Compute weekly study hours from telemetry (last 7 days, study pages, tab focused)
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    const weeklyTelemetry = await db.telemetryRecord.findMany({
+      where: { studentId: sid, createdAt: { gte: sevenDaysAgo }, tabFocused: true, pageId: { in: STUDY_PAGE_IDS } },
+      select: { activeSeconds: true },
+    })
+    const totalWeeklySeconds = weeklyTelemetry.reduce((s, t) => s + t.activeSeconds, 0)
+    const weeklyActiveHours = Math.round((totalWeeklySeconds / 3600) * 10) / 10
+
     // Update engagement score
     await db.engagementScore.upsert({
       where: { studentId: sid },
@@ -45,14 +60,14 @@ export async function POST(request: Request) {
         overallScore: Math.round(engagementScore),
         studyConsistencyRate: Math.round(focusRate * 100),
         avgSessionDuration: Math.round(avgActive),
-        weeklyActiveHours: Math.round(recentRecords.reduce((s, r) => s + r.activeSeconds, 0) / 3600 * 10) / 10,
+        weeklyActiveHours,
         interactionDensity: Math.round(avgInteractions),
       },
       update: {
         overallScore: Math.round(engagementScore),
         studyConsistencyRate: Math.round(focusRate * 100),
         avgSessionDuration: Math.round(avgActive),
-        weeklyActiveHours: Math.round(recentRecords.reduce((s, r) => s + r.activeSeconds, 0) / 3600 * 10) / 10,
+        weeklyActiveHours,
         interactionDensity: Math.round(avgInteractions),
         lastCalculated: new Date(),
       },
