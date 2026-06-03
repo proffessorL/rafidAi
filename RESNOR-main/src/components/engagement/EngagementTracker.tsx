@@ -55,6 +55,7 @@ interface ScreenTimeData {
     message: string;
     feature: string;
   };
+  weeklyActiveHours: number;
 }
 
 interface AiInsight {
@@ -850,7 +851,7 @@ export default function EngagementTracker() {
     );
   }
 
-  const { today, features, dailyTotals, insight } = data;
+  const { today, features, dailyTotals, insight, weeklyActiveHours } = data;
   const maxFeatureSec = Math.max(...features.map((f) => f.totalSeconds), 1);
 
   return (

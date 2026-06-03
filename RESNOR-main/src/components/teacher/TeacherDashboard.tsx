@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   BarChart,
   Bar,
@@ -26,7 +26,9 @@ import {
   BookOpen,
   MessageSquare,
   PenLine,
+  Sparkles, ChevronDown, Lightbulb, Brain,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -57,6 +59,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import StudentDetailModal from "@/components/teacher/StudentDetailModal";
+import QuizManager from "./QuizManager";
+import CourseManager from "./CourseManager";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -74,62 +79,6 @@ type SortField = "name" | "email" | "lastActive" | "quizAvg" | "engagementScore"
 type SortDirection = "asc" | "desc";
 
 type Tone = "supportive" | "encouraging" | "formal";
-
-// ── Mock Data ──────────────────────────────────────────────────────────────────
-
-const completionData = [
-  { topic: "Variables", completed: 22, inProgress: 6, pending: 2 },
-  { topic: "Loops", completed: 18, inProgress: 8, pending: 4 },
-  { topic: "Functions", completed: 15, inProgress: 10, pending: 5 },
-  { topic: "Arrays", completed: 12, inProgress: 9, pending: 9 },
-  { topic: "OOP Basics", completed: 8, inProgress: 12, pending: 10 },
-  { topic: "Data Structures", completed: 5, inProgress: 7, pending: 18 },
-];
-
-const scoreDistribution = [
-  { range: "0–20%", students: 2 },
-  { range: "20–40%", students: 4 },
-  { range: "40–60%", students: 7 },
-  { range: "60–80%", students: 12 },
-  { range: "80–100%", students: 15 },
-];
-
-const recentActivities = [
-  { id: 1, student: "Maria Chen", action: "completed quiz", target: "Variables & Types", time: "5 min ago" },
-  { id: 2, student: "James Wilson", action: "started topic", target: "Functions & Scope", time: "12 min ago" },
-  { id: 3, student: "Aisha Patel", action: "scored 92% on", target: "Loops Quiz", time: "23 min ago" },
-  { id: 4, student: "Carlos Rivera", action: "submitted assignment", target: "Array Methods Lab", time: "41 min ago" },
-  { id: 5, student: "Sophie Kim", action: "started topic", target: "OOP Basics", time: "1 hr ago" },
-];
-
-const studentsData: Student[] = [
-  { id: "1", name: "Carlos Rivera", email: "carlos.r@email.com", lastActive: "2024-12-01", quizAvg: 42, engagementScore: 25, status: "At Risk" },
-  { id: "2", name: "Diana Foster", email: "diana.f@email.com", lastActive: "2024-12-05", quizAvg: 51, engagementScore: 35, status: "Warning" },
-  { id: "3", name: "Ethan Brooks", email: "ethan.b@email.com", lastActive: "2024-12-10", quizAvg: 38, engagementScore: 20, status: "At Risk" },
-  { id: "4", name: "Fatima Al-Hassan", email: "fatima.h@email.com", lastActive: "2024-12-18", quizAvg: 55, engagementScore: 40, status: "Warning" },
-  { id: "5", name: "George Tanaka", email: "george.t@email.com", lastActive: "2024-12-20", quizAvg: 78, engagementScore: 72, status: "OK" },
-  { id: "6", name: "Hannah Müller", email: "hannah.m@email.com", lastActive: "2024-12-22", quizAvg: 85, engagementScore: 80, status: "OK" },
-  { id: "7", name: "Isaac Nguyen", email: "isaac.n@email.com", lastActive: "2024-12-14", quizAvg: 45, engagementScore: 30, status: "At Risk" },
-  { id: "8", name: "Julia Santos", email: "julia.s@email.com", lastActive: "2024-12-19", quizAvg: 68, engagementScore: 58, status: "OK" },
-];
-
-const defaultDraftMessages: Record<Tone, string> = {
-  supportive:
-    "Hi {name},\n\nI've noticed you've been having a bit of a tough time recently with the course material. That's completely okay — learning to code can be challenging, and everyone hits roadblocks.\n\nYour quiz average is currently {quizAvg}%, and I want to make sure you have the support you need to get back on track.\n\nWould you like to schedule a 1-on-1 session this week? I'm happy to go over any topics you're finding difficult.\n\nBest regards,\nYour Instructor",
-  encouraging:
-    "Hey {name}!\n\nYou've got real potential, and I can see you're putting in the effort. Sometimes the concepts just need a little more time to click.\n\nRight now your quiz scores are around {quizAvg}%, but I know you can bring that up. Let's work together to make it happen!\n\nHow about we set up a quick study session? I've got some great resources that might help things click.\n\nKeep going — you've got this!\nCheers,\nYour Instructor",
-  formal:
-    "Dear {name},\n\nI am writing regarding your current progress in the course. Your quiz average stands at {quizAvg}%, which is below the recommended threshold.\n\nWe encourage you to review the course material and consider attending office hours for additional support. Consistent engagement with the material will significantly improve your outcomes.\n\nPlease let me know a convenient time to discuss your progress.\n\nSincerely,\nCourse Instructor",
-};
-
-const aiImprovedMessages: Record<Tone, string> = {
-  supportive:
-    "Hi {name},\n\nI wanted to reach out because I care about your success in this course. I noticed that some of the recent topics — particularly around {weakestTopic} — may not have clicked yet, and that's completely normal.\n\nYour current quiz average is {quizAvg}%, but here's the thing: every programmer started exactly where you are now. The concepts build on each other, so let's make sure the foundations are solid.\n\nHere's what I'd suggest:\n1. Review the {weakestTopic} module at your own pace\n2. Try the practice problems at the end of each section\n3. Join the study group that meets on Wednesdays\n\nI'm available for a 1-on-1 session anytime this week — just let me know. We'll get through this together.\n\nWarmly,\nYour Instructor",
-  encouraging:
-    "Hey {name}! 🌟\n\nQuick note — I see you've been working through the material, and I want you to know that your effort doesn't go unnoticed!\n\nYour quiz scores are around {quizAvg}% right now, but here's what's exciting: students who stick with it through this phase almost always see a big jump in understanding. The \"confusion phase\" is actually a sign that your brain is building new connections!\n\nA few students in your cohort have been crushing it in the study group — would you be up for joining? Sometimes talking through problems with peers makes all the difference.\n\nAlso, I noticed you might benefit from revisiting {weakestTopic}. I've added some bonus practice problems there that are designed to build confidence step by step.\n\nYou're closer to a breakthrough than you think. Let's make it happen!\n\nHigh five,\nYour Instructor",
-  formal:
-    "Dear {name},\n\nI hope this message finds you well. I am writing to share some observations regarding your academic progress and to offer concrete next steps for improvement.\n\nCurrent Metrics:\n• Quiz Average: {quizAvg}%\n• Last Active: {lastActive}\n• Engagement Score: {engagementScore}/100\n\nAreas for Focus:\nBased on your recent assessments, I recommend prioritizing a review of {weakestTopic}, as this appears to be the primary area affecting your quiz performance.\n\nRecommended Actions:\n1. Attend the upcoming review session (Thursday, 3 PM)\n2. Complete the supplementary exercises in Module 4\n3. Schedule a 15-minute progress check-in during office hours\n\nResearch consistently shows that students who maintain regular engagement and seek help early achieve significantly better outcomes. I am confident that with targeted effort, you can reach your goals.\n\nPlease reply with your availability, and I will arrange a meeting at your convenience.\n\nBest regards,\nCourse Instructor",
-};
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -149,9 +98,24 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hr ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days} day ago`;
+}
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function TeacherDashboard() {
+  const [metrics, setMetrics] = useState<any>(null)
+  const [students, setStudents] = useState<Student[]>([])
+  const [loading, setLoading] = useState(true)
+
   // Search & sort state for at-risk tracker
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("engagementScore");
@@ -164,6 +128,52 @@ export default function TeacherDashboard() {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  // Student detail state
+  const [detailStudentId, setDetailStudentId] = useState<string | null>(null);
+  const [detailStudentName, setDetailStudentName] = useState("");
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  // AI Class Summary
+  const [classSummary, setClassSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
+  // AI Risk Explanation — Sheet
+  const [riskSheetOpen, setRiskSheetOpen] = useState(false);
+  const [riskStudent, setRiskStudent] = useState<Student | null>(null);
+  const [riskExplanation, setRiskExplanation] = useState<string | null>(null);
+  const [riskExplaining, setRiskExplaining] = useState(false);
+
+  // AI Topic Analysis
+  const [topicAnalysis, setTopicAnalysis] = useState<string | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+
+  // ── Data Fetching ─────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    setLoading(true)
+    Promise.all([
+      fetch('/api/teacher/class-metrics').then(r => r.json()),
+      fetch('/api/teacher/at-risk-students').then(r => r.json()),
+    ])
+      .then(([classRes, riskRes]) => {
+        if (!classRes.error) setMetrics(classRes)
+        if (!riskRes.error && riskRes.students) {
+          setStudents(riskRes.students.map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            email: s.email,
+            lastActive: s.lastActive,
+            quizAvg: s.quizAverage,
+            engagementScore: s.engagementScore,
+            status: s.status as Student["status"],
+          })))
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -172,11 +182,15 @@ export default function TeacherDashboard() {
     setTone("supportive");
     setSubject(`Checking in — ${student.name}`);
     setMessage(
-      defaultDraftMessages.supportive
-        .replace("{name}", student.name)
-        .replace("{quizAvg}", String(student.quizAvg))
+      `Hi ${student.name},\n\nI wanted to reach out and check in on your progress. Your quiz average is currently ${student.quizAvg}%. Let me know if you'd like to schedule a 1-on-1 session this week.\n\nBest regards,\nYour Instructor`
     );
     setSheetOpen(true);
+  }, []);
+
+  const openDetail = useCallback((student: Student) => {
+    setDetailStudentId(student.id);
+    setDetailStudentName(student.name);
+    setDetailOpen(true);
   }, []);
 
   const handleSort = useCallback(
@@ -191,32 +205,76 @@ export default function TeacherDashboard() {
     [sortField]
   );
 
-  const handleGenerateAI = useCallback(() => {
+  const handleGenerateAI = useCallback(async () => {
     if (!selectedStudent) return;
     setIsGenerating(true);
-    setTimeout(() => {
-      const template = aiImprovedMessages[tone];
+    try {
+      const res = await fetch('/api/teacher/generate-outreach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          student_name: selectedStudent.name,
+          student_email: selectedStudent.email,
+          quiz_average: selectedStudent.quizAvg,
+          engagement_score: selectedStudent.engagementScore,
+          days_since_active: Math.floor((Date.now() - new Date(selectedStudent.lastActive).getTime()) / (1000 * 60 * 60 * 24)),
+          tone,
+        }),
+      })
+      const data = await res.json()
+      if (data.message) setMessage(data.message)
+    } catch {
+      // fallback to template on error
       setMessage(
-        template
-          .replace("{name}", selectedStudent.name)
-          .replace("{quizAvg}", String(selectedStudent.quizAvg))
-          .replace("{lastActive}", formatDate(selectedStudent.lastActive))
-          .replace("{engagementScore}", String(selectedStudent.engagementScore))
-          .replace("{weakestTopic}", "Data Structures")
-      );
-      setIsGenerating(false);
-    }, 2000);
+        `Hi ${selectedStudent.name},\n\nI wanted to reach out and check in on your progress. Your quiz average is currently ${selectedStudent.quizAvg}%. Let me know if you'd like to schedule a 1-on-1 session.\n\nBest regards,\nYour Instructor`
+      )
+    }
+    setIsGenerating(false);
   }, [selectedStudent, tone]);
+
+  const handleSendMessage = useCallback(async () => {
+    if (!selectedStudent) return;
+    setSending(true);
+    // Save to intervention records
+    try {
+      await fetch('/api/teacher/interventions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          student_id: selectedStudent.id,
+          subject,
+          message,
+          tone,
+          status: 'sent',
+        }),
+      })
+    } catch {}
+    setSending(false);
+    setSheetOpen(false);
+  }, [selectedStudent, subject, message, tone]);
+
+  const handleSaveDraft = useCallback(async () => {
+    if (!selectedStudent) return;
+    try {
+      await fetch('/api/teacher/interventions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          student_id: selectedStudent.id,
+          subject,
+          message,
+          tone,
+          status: 'draft',
+        }),
+      })
+    } catch {}
+    setSheetOpen(false);
+  }, [selectedStudent, subject, message, tone]);
 
   const handleToneChange = useCallback(
     (newTone: Tone) => {
       if (!selectedStudent) return;
       setTone(newTone);
-      setMessage(
-        defaultDraftMessages[newTone]
-          .replace("{name}", selectedStudent.name)
-          .replace("{quizAvg}", String(selectedStudent.quizAvg))
-      );
     },
     [selectedStudent]
   );
@@ -224,7 +282,7 @@ export default function TeacherDashboard() {
   // ── Computed ─────────────────────────────────────────────────────────────
 
   const sortedStudents = useMemo(() => {
-    const filtered = studentsData.filter(
+    const filtered = students.filter(
       (s) =>
         s.name.toLowerCase().includes(search.toLowerCase()) ||
         s.email.toLowerCase().includes(search.toLowerCase())
@@ -255,26 +313,112 @@ export default function TeacherDashboard() {
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [search, sortField, sortDir]);
+  }, [search, sortField, sortDir, students]);
 
   const sortArrow = (field: SortField) => {
     if (sortField !== field) return null;
     return sortDir === "asc" ? " ↑" : " ↓";
   };
 
-  const stats = useMemo(
-    () => ({
-      totalStudents: studentsData.length,
-      avgCompletion: 62,
-      avgQuizScore: Math.round(
-        studentsData.reduce((sum, s) => sum + s.quizAvg, 0) / studentsData.length
-      ),
-      activeStudents: studentsData.filter(
-        (s) => new Date(s.lastActive) > new Date("2024-12-15")
-      ).length,
-    }),
-    []
-  );
+  const overview = metrics?.overview || { totalStudents: 0, avgCompletionRate: 0, avgQuizScore: 0, activeStudents: 0 }
+  const recentActivity = metrics?.recentActivity || []
+  const topicMetrics = metrics?.topicMetrics || []
+  const scoreDist = metrics?.scoreDistribution || []
+
+  const completionData = topicMetrics.map((t: any) => ({
+    topic: t.topicName,
+    completed: t.completed,
+    inProgress: t.inProgress,
+    pending: t.pending,
+  }))
+
+  const scoreDistribution = scoreDist.map((s: any) => ({
+    range: s.range.includes('-') ? s.range + '%' : s.range,
+    students: s.count,
+  }))
+
+  const activeStudents = overview.activeStudents
+
+  // Categorize topics by completion rate
+  const completedTopics = topicMetrics.filter((t: any) => t.total > 0 && (t.completed / t.total) >= 0.6)
+  const strugglingTopics = topicMetrics.filter((t: any) => t.total > 0 && (t.completed / t.total) < 0.6)
+
+  // ── AI: Class Summary ────────────────────────────────────────────────────
+
+  const handleGenerateSummary = useCallback(async () => {
+    if (classSummary) { setClassSummary(null); return }
+    setSummaryLoading(true);
+    try {
+      const res = await fetch('/api/teacher/class-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          totalStudents: overview.totalStudents,
+          avgCompletionRate: overview.avgCompletionRate,
+          avgQuizScore: overview.avgQuizScore,
+          activeStudents: overview.activeStudents,
+          scoreDistribution: scoreDist,
+        }),
+      })
+      const data = await res.json()
+      if (data.summary) setClassSummary(data.summary)
+    } catch {}
+    setSummaryLoading(false);
+  }, [classSummary, overview, scoreDist]);
+
+  // ── AI: Risk Explanation ─────────────────────────────────────────────────
+
+  const handleExplainRisk = useCallback(async (student: Student) => {
+    setRiskStudent(student);
+    setRiskSheetOpen(true);
+    setRiskExplanation(null);
+    setRiskExplaining(true);
+    try {
+      const res = await fetch('/api/teacher/explain-risk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: student.name,
+          quizAverage: student.quizAvg,
+          engagementScore: student.engagementScore,
+          daysSinceActive: Math.floor((Date.now() - new Date(student.lastActive).getTime()) / (1000 * 60 * 60 * 24)),
+          status: student.status,
+        }),
+      })
+      const data = await res.json()
+      if (data.explanation) setRiskExplanation(data.explanation)
+    } catch {}
+    setRiskExplaining(false);
+  }, []);
+
+  // ── AI: Topic Analysis ───────────────────────────────────────────────────
+
+  const handleTopicAnalysis = useCallback(async () => {
+    setAnalysisLoading(true);
+    setTopicAnalysis(null);
+    try {
+      const res = await fetch('/api/teacher/generate-questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topicMetrics,
+          avgQuizScore: overview.avgQuizScore,
+          avgCompletionRate: overview.avgCompletionRate,
+        }),
+      })
+      const data = await res.json()
+      if (data.analysis) setTopicAnalysis(data.analysis)
+    } catch {}
+    setAnalysisLoading(false);
+  }, [topicMetrics, overview.avgQuizScore, overview.avgCompletionRate]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -285,6 +429,43 @@ export default function TeacherDashboard() {
         </p>
       </div>
 
+      {/* ── AI Class Summary ─────────────────────────────────────────────── */}
+      <Collapsible
+        open={classSummary !== null}
+        onOpenChange={(open) => { if (!open) setClassSummary(null) }}
+        className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 backdrop-blur-sm"
+      >
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="size-4 text-emerald-500" />
+            <span className="text-sm font-semibold text-emerald-500">AI Class Summary</span>
+          </div>
+          <CollapsibleTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleGenerateSummary}
+              disabled={summaryLoading}
+              className="gap-1.5 text-xs"
+            >
+              {summaryLoading ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : classSummary ? (
+                <ChevronDown className="size-3.5" />
+              ) : (
+                <Sparkles className="size-3.5" />
+              )}
+              {summaryLoading ? 'Generating...' : classSummary ? 'Hide' : 'Generate'}
+            </Button>
+          </CollapsibleTrigger>
+        </div>
+        <CollapsibleContent>
+          <div className="px-4 pb-4">
+            <p className="text-sm text-foreground/80 leading-relaxed">{classSummary}</p>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="w-full sm:w-auto">
           <TabsTrigger value="overview" className="gap-1.5">
@@ -294,6 +475,14 @@ export default function TeacherDashboard() {
           <TabsTrigger value="at-risk" className="gap-1.5">
             <AlertTriangle className="size-4" />
             At-Risk Tracker
+          </TabsTrigger>
+          <TabsTrigger value="quizzes" className="gap-1.5">
+            <Brain className="size-4" />
+            Quizzes
+          </TabsTrigger>
+          <TabsTrigger value="courses" className="gap-1.5">
+            <BookOpen className="size-4" />
+            Courses
           </TabsTrigger>
         </TabsList>
 
@@ -308,7 +497,7 @@ export default function TeacherDashboard() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total Students</p>
-                  <p className="text-xl font-bold">{stats.totalStudents}</p>
+                  <p className="text-xl font-bold">{overview.totalStudents}</p>
                 </div>
               </CardContent>
             </Card>
@@ -319,7 +508,7 @@ export default function TeacherDashboard() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Avg Completion</p>
-                  <p className="text-xl font-bold">{stats.avgCompletion}%</p>
+                  <p className="text-xl font-bold">{overview.avgCompletionRate}%</p>
                 </div>
               </CardContent>
             </Card>
@@ -330,7 +519,7 @@ export default function TeacherDashboard() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Avg Quiz Score</p>
-                  <p className="text-xl font-bold">{stats.avgQuizScore}%</p>
+                  <p className="text-xl font-bold">{overview.avgQuizScore}%</p>
                 </div>
               </CardContent>
             </Card>
@@ -341,7 +530,7 @@ export default function TeacherDashboard() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Active Students</p>
-                  <p className="text-xl font-bold">{stats.activeStudents}</p>
+                  <p className="text-xl font-bold">{activeStudents}</p>
                 </div>
               </CardContent>
             </Card>
@@ -413,13 +602,16 @@ export default function TeacherDashboard() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Recent Activity</CardTitle>
-              <CardDescription>Latest student interactions</CardDescription>
+              <CardDescription>Latest quiz completions</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {recentActivities.map((a) => (
+                {recentActivity.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-6">No recent activity.</p>
+                )}
+                {recentActivity.slice(0, 5).map((a: any, i: number) => (
                   <div
-                    key={a.id}
+                    key={i}
                     className="flex items-start gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50"
                   >
                     <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
@@ -427,18 +619,102 @@ export default function TeacherDashboard() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm">
-                        <span className="font-medium">{a.student}</span>{" "}
-                        <span className="text-muted-foreground">{a.action}</span>{" "}
-                        <span className="font-medium">{a.target}</span>
+                        <span className="font-medium">{a.studentName}</span>{" "}
+                        <span className="text-muted-foreground">{a.action}</span>
+                        {a.topic && <span className="font-medium"> — {a.topic}</span>}
+                        {a.score != null && (
+                          <span className={a.score >= 80 ? 'text-emerald-500' : a.score >= 50 ? 'text-amber-500' : 'text-rose-500'}>
+                            {' '}({Math.round(a.score)}%)
+                          </span>
+                        )}
                       </p>
                     </div>
                     <span className="flex items-center gap-1 whitespace-nowrap text-xs text-muted-foreground">
                       <Clock className="size-3" />
-                      {a.time}
+                      {timeAgo(a.time)}
                     </span>
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* ── AI Topic Analysis ── */}
+          <Card className="border-emerald-500/20 bg-emerald-500/[0.02]">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Lightbulb className="size-4 text-emerald-500" />
+                  AI Topic Analysis
+                </CardTitle>
+                <CardDescription>Which topics are completed, where students struggle, and what needs attention</CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleTopicAnalysis}
+                disabled={analysisLoading}
+                className="gap-1.5 shrink-0"
+              >
+                {analysisLoading ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="size-3.5" />
+                )}
+                {analysisLoading ? 'Analysing...' : 'Analyse'}
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-emerald-500 flex items-center gap-1.5">
+                    <CheckCircle2 className="size-3.5" />
+                    Completed / On Track
+                  </p>
+                  {completedTopics.length > 0 ? completedTopics.map((t: any, i: number) => (
+                    <div key={i} className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04] px-3 py-2 text-xs text-emerald-600/90">
+                      <span className="font-medium">{t.topicName}</span>
+                      <span className="text-emerald-500/70 ml-2">{Math.round((t.completed / t.total) * 100)}% done</span>
+                    </div>
+                  )) : (
+                    <p className="text-xs text-muted-foreground">No topics at this threshold yet</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-rose-500 flex items-center gap-1.5">
+                    <AlertTriangle className="size-3.5" />
+                    Needs Attention
+                  </p>
+                  {strugglingTopics.length > 0 ? strugglingTopics.map((t: any, i: number) => (
+                    <div key={i} className="rounded-lg border border-rose-500/20 bg-rose-500/[0.04] px-3 py-2 text-xs text-rose-600/90">
+                      <span className="font-medium">{t.topicName}</span>
+                      <span className="text-rose-500/70 ml-2">{t.pending} pending, {Math.round((t.completed / t.total) * 100)}% done</span>
+                    </div>
+                  )) : (
+                    <p className="text-xs text-muted-foreground">All topics are on track</p>
+                  )}
+                </div>
+              </div>
+
+              {topicAnalysis && (
+                <div className="border-t border-border/50 pt-3 space-y-2">
+                  <p className="text-xs font-semibold text-foreground/60 flex items-center gap-1.5">
+                    <Sparkles className="size-3" />
+                    AI Insights
+                  </p>
+                  <div className="space-y-1.5">
+                    {topicAnalysis
+                      .split('\n')
+                      .filter(l => l.trim().startsWith('-'))
+                      .map((line, i) => (
+                        <div key={i} className="flex items-start gap-2 text-xs text-foreground/70">
+                          <span className="text-emerald-500 mt-0.5 shrink-0">•</span>
+                          <span className="leading-relaxed">{line.replace(/^-\s*/, '')}</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -507,22 +783,40 @@ export default function TeacherDashboard() {
                 <TableBody>
                   {sortedStudents.map((student) => (
                     <TableRow key={student.id}>
-                      <TableCell className="font-medium">{student.name}</TableCell>
+                      <TableCell>
+                        <button
+                          onClick={() => openDetail(student)}
+                          className="font-medium text-left hover:text-emerald-500 transition-colors underline-offset-2 hover:underline cursor-pointer"
+                        >
+                          {student.name}
+                        </button>
+                      </TableCell>
                       <TableCell className="text-muted-foreground">{student.email}</TableCell>
                       <TableCell>{formatDate(student.lastActive)}</TableCell>
                       <TableCell>{student.quizAvg}%</TableCell>
                       <TableCell>{student.engagementScore}</TableCell>
                       <TableCell>{statusBadge(student.status)}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openIntervention(student)}
-                          className="gap-1.5"
-                        >
-                          <PenLine className="size-3.5" />
-                          Draft Intervention
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleExplainRisk(student)}
+                            className="gap-1 text-xs h-8 px-2"
+                          >
+                            <Sparkles className="size-3" />
+                            AI
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openIntervention(student)}
+                            className="gap-1.5"
+                          >
+                            <PenLine className="size-3.5" />
+                            Draft
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -530,6 +824,16 @@ export default function TeacherDashboard() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ═══════════════════════ Tab 3 – Quizzes ═══════════════════════ */}
+        <TabsContent value="quizzes" className="pt-2">
+          <QuizManager />
+        </TabsContent>
+
+        {/* ═══════════════════════ Tab 4 – Courses ═══════════════════════ */}
+        <TabsContent value="courses" className="pt-2">
+          <CourseManager />
         </TabsContent>
       </Tabs>
 
@@ -639,17 +943,93 @@ export default function TeacherDashboard() {
           )}
 
           <SheetFooter className="border-t px-4 py-3">
-            <Button variant="outline" onClick={() => setSheetOpen(false)} className="gap-1.5">
+            <Button variant="outline" onClick={handleSaveDraft} disabled={sending} className="gap-1.5">
               <Save className="size-3.5" />
-              Save Draft
+              {sending ? 'Saving...' : 'Save Draft'}
             </Button>
-            <Button onClick={() => setSheetOpen(false)} className="gap-1.5">
+            <Button onClick={handleSendMessage} disabled={sending} className="gap-1.5">
               <Send className="size-3.5" />
-              Send Message
+              {sending ? 'Sending...' : 'Send Message'}
             </Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      {/* ═══════════════════════ Risk Explanation Sheet ═══════════════════════ */}
+      <Sheet open={riskSheetOpen} onOpenChange={(open) => { setRiskSheetOpen(open); if (!open) setRiskStudent(null) }}>
+        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader className="pr-6">
+            <SheetTitle>Risk Explanation</SheetTitle>
+            <SheetDescription>
+              {riskStudent ? `AI analysis for ${riskStudent.name}` : ''}
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="px-4 pb-6 space-y-4">
+            {riskStudent && (
+              <Card>
+                <CardContent className="space-y-3 pt-0">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold">
+                      {riskStudent.name.split(" ").map((n) => n[0]).join("")}
+                    </div>
+                    <div>
+                      <p className="font-medium">{riskStudent.name}</p>
+                      <p className="text-sm text-muted-foreground">{riskStudent.email}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="rounded-lg border p-2 text-center">
+                      <p className="text-xs text-muted-foreground">Quiz Avg</p>
+                      <p className="text-sm font-bold">{riskStudent.quizAvg}%</p>
+                    </div>
+                    <div className="rounded-lg border p-2 text-center">
+                      <p className="text-xs text-muted-foreground">Engagement</p>
+                      <p className="text-sm font-bold">{riskStudent.engagementScore}</p>
+                    </div>
+                    <div className="rounded-lg border p-2 text-center">
+                      <p className="text-xs text-muted-foreground">Last Active</p>
+                      <p className="text-sm font-bold">{formatDate(riskStudent.lastActive)}</p>
+                    </div>
+                  </div>
+                  <div className="text-center">{statusBadge(riskStudent.status)}</div>
+                </CardContent>
+              </Card>
+            )}
+
+            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-4">
+              {riskExplaining ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Generating AI explanation...
+                </div>
+              ) : riskExplanation ? (
+                <div className="space-y-1.5">
+                  {riskExplanation
+                    .split('\n')
+                    .filter(l => l.trim().startsWith('-'))
+                    .map((line, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm text-foreground/80">
+                        <span className="text-rose-500 mt-0.5 shrink-0">•</span>
+                        <span className="leading-relaxed">{line.replace(/^-\s*/, '')}</span>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Click AI to generate risk explanation.</p>
+              )}
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* ═══════════════════════ Student Detail Modal ═══════════════════════ */}
+      <StudentDetailModal
+        studentId={detailStudentId || ''}
+        studentName={detailStudentName}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+      />
     </div>
   );
 }

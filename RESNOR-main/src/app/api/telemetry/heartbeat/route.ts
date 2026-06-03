@@ -42,11 +42,11 @@ export async function POST(request: Request) {
       focusRate * 20             // Up to 20 pts for focus
     )
 
-    // Compute weekly study hours from telemetry (last 7 days, study pages, tab focused)
+    // Compute weekly study hours from telemetry (last 7 days, study pages)
     const sevenDaysAgo = new Date()
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
     const weeklyTelemetry = await db.telemetryRecord.findMany({
-      where: { studentId: sid, createdAt: { gte: sevenDaysAgo }, tabFocused: true, pageId: { in: STUDY_PAGE_IDS } },
+      where: { studentId: sid, createdAt: { gte: sevenDaysAgo }, pageId: { in: STUDY_PAGE_IDS } },
       select: { activeSeconds: true },
     })
     const totalWeeklySeconds = weeklyTelemetry.reduce((s, t) => s + t.activeSeconds, 0)

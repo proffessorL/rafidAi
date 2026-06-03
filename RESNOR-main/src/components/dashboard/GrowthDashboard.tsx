@@ -723,9 +723,7 @@ export default function GrowthDashboard() {
   const avgScore = data.averageQuizScore || 0
   const highScoreQuizCount = data.highScoreQuizCount || 0
   const totalTime = data.totalTimeMinutes || 0
-  const bestQuiz = data.quizAttempts?.length
-    ? Math.max(...data.quizAttempts.map((a: any) => a.score))
-    : 0
+  const bestQuiz = data.bestQuizScore || 0
 
   // Weakest topic computation
   const topicAverages = Object.entries(data.topicScores || {})

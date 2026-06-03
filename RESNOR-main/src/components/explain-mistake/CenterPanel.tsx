@@ -247,39 +247,14 @@ export default function CenterPanel({ question, attemptId, activeTab, explanatio
                       </div>
                     </div>
                     <div className="pl-9 space-y-3">
-                      <div className="relative">
-                        <div className="absolute left-1/2 top-0 bottom-0 w-px bg-border -translate-x-1/2 hidden sm:block" />
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="rounded-xl bg-gradient-to-br from-rose-500/10 to-rose-500/5 border border-rose-500/25 p-3 shadow-sm">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="flex size-5 items-center justify-center rounded-md bg-rose-500/20 text-[10px] font-bold text-rose-600">
-                                {question.studentAnswer}
-                              </span>
-                              <span className="text-[10px] font-semibold text-rose-500 uppercase tracking-wider">Your Choice</span>
-                            </div>
-                            <p className="text-sm font-medium text-rose-700 dark:text-rose-300 leading-snug">
-                              {resolveOptionText(question, question.studentAnswer)}
-                            </p>
-                          </div>
-                          <div className="rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/25 p-3 shadow-sm">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="flex size-5 items-center justify-center rounded-md bg-emerald-500/20 text-[10px] font-bold text-emerald-600">
-                                {question.correctAnswer}
-                              </span>
-                              <span className="text-[10px] font-semibold text-emerald-500 uppercase tracking-wider">Correct Answer</span>
-                            </div>
-                            <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300 leading-snug">
-                              {resolveOptionText(question, question.correctAnswer)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden sm:flex size-7 items-center justify-center rounded-full bg-background border border-border text-[10px] font-bold text-muted-foreground">
-                          vs
-                        </div>
-                      </div>
-                      {explanation.reasoningBreakdown.split('\n').filter(Boolean).length > 1 ? (
-                        <div className="space-y-2">
-                          {explanation.reasoningBreakdown
+                      {(() => {
+                        const reasoning = explanation.reasoningBreakdown?.trim()
+                          || explanation.rootCauseAnalysis?.trim()
+                          || explanation.mistakeSummary?.trim()
+                          || 'Unable to trace reasoning path.'
+                        return reasoning.split('\n').filter(Boolean).length > 1 ? (
+                          <div className="space-y-2">
+                            {reasoning
                             .split('\n')
                             .filter(Boolean)
                             .map((line, i) => {
@@ -315,10 +290,11 @@ export default function CenterPanel({ question, attemptId, activeTab, explanatio
                         <div className="flex items-start gap-2">
                           <div className="size-1.5 rounded-full bg-violet-500/40 mt-2 shrink-0" />
                           <p className="text-sm leading-relaxed text-foreground/85 whitespace-pre-line">
-                            {explanation.reasoningBreakdown}
+                            {reasoning}
                           </p>
                         </div>
                       )}
+                      )()}
                     </div>
                   </CardContent>
                 </Card>

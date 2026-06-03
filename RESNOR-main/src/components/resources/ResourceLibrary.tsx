@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
@@ -824,10 +824,19 @@ function UploadDialog({
   const [type, setType] = useState<ResourceType>('Document');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock submit - would normally call an API
+    setSubmitting(true);
+    try {
+      await fetch('/api/resources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, type, subject, description }),
+      })
+    } catch {}
+    setSubmitting(false);
     onOpenChange(false);
     setTitle('');
     setType('Document');
@@ -912,10 +921,11 @@ function UploadDialog({
             </Button>
             <Button
               type="submit"
+              disabled={submitting}
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               <Upload className="h-4 w-4 mr-2" />
-              Upload
+              {submitting ? 'Uploading...' : 'Upload'}
             </Button>
           </DialogFooter>
         </form>
@@ -974,6 +984,39 @@ export default function ResourceLibrary() {
   const [detailResource, setDetailResource] = useState<Resource | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+
+  // Fetch real resources from API and merge with mock data
+  useEffect(() => {
+    fetch('/api/resources')
+      .then(r => r.json())
+      .then(res => {
+        if (res.error || !res.resources?.length) return
+        const apiResources: Resource[] = res.resources.map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          type: r.type as ResourceType,
+          subject: r.subject || 'General',
+          description: r.description || '',
+          author: r.authorName || 'Unknown',
+          date: new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          fileSize: r.fileSize || '—',
+          downloads: r.downloads || 0,
+          rating: r.rating || 0,
+          isBookmarked: false,
+          relatedIds: [],
+        }))
+        setResources(prev => {
+          const merged = [...apiResources]
+          for (const mock of MOCK_RESOURCES) {
+            if (!apiResources.find(a => a.id === mock.id)) {
+              merged.push(mock)
+            }
+          }
+          return merged
+        })
+      })
+      .catch(() => {}) // fallback to mock data
+  }, [])
 
   const filteredResources = useMemo(() => {
     let result = [...resources];

@@ -44,8 +44,9 @@ export async function GET(request: NextRequest) {
       include: { quiz: { include: { topic: true } } },
       orderBy: { completedAt: 'desc' },
     })
-    const avgScore = attempts.length > 0
-      ? Math.round(attempts.reduce((sum, a) => sum + (a.correctCount / a.totalQuestions) * 100, 0) / attempts.length * 10) / 10
+    const recentAttempts = attempts.slice(0, 10)
+    const avgScore = recentAttempts.length > 0
+      ? Math.round(recentAttempts.reduce((sum, a) => sum + (a.correctCount / a.totalQuestions) * 100, 0) / recentAttempts.length * 10) / 10
       : 0
     const highScoreQuizCount = attempts.filter(a => a.totalQuestions > 0 && (a.correctCount / a.totalQuestions) >= 0.8).length
 
@@ -101,8 +102,12 @@ export async function GET(request: NextRequest) {
     // 6. Engagement
     const engagement = await db.engagementScore.findUnique({ where: { studentId } })
 
-    // 7. Total study time (seconds -> minutes)
-    const totalTimeMinutes = Math.floor(allProgress.reduce((sum, p) => sum + p.timeSpent, 0) / 60)
+    // 7. Total study time (seconds -> minutes) — from telemetry (study pages only)
+    const totalTelemetry = await db.telemetryRecord.aggregate({
+      where: { studentId, pageId: { in: STUDY_PAGE_IDS } },
+      _sum: { activeSeconds: true },
+    })
+    const totalTimeMinutes = Math.floor((totalTelemetry._sum.activeSeconds || 0) / 60)
 
     // 8. Topic performance over time (weekly bins)
     const topicScoresRaw: Record<string, { score: number; date: string; correctCount: number; totalQuestions: number; quizTitle: string }[]> = {}
@@ -118,8 +123,14 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // 9. Weekly activity (last 7 days)
+    // 9. Weekly activity (last 7 days) — from telemetry (study pages only)
     const now = new Date()
+    const sevenDaysAgo = new Date(now)
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    const weekTelemetry = await db.telemetryRecord.findMany({
+      where: { studentId, pageId: { in: STUDY_PAGE_IDS }, createdAt: { gte: sevenDaysAgo } },
+      select: { activeSeconds: true, createdAt: true },
+    })
     const weeklyActivity: { day: string; hours: number }[] = []
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     for (let i = 6; i >= 0; i--) {
@@ -129,12 +140,12 @@ export async function GET(request: NextRequest) {
       dayStart.setHours(0, 0, 0, 0)
       const dayEnd = new Date(d)
       dayEnd.setHours(23, 59, 59, 999)
-      const dayMs = allProgress
-        .filter(p => {
-          const la = new Date(p.lastAccessedAt)
-          return la >= dayStart && la <= dayEnd
+      const dayMs = weekTelemetry
+        .filter(t => {
+          const ca = new Date(t.createdAt)
+          return ca >= dayStart && ca <= dayEnd
         })
-        .reduce((sum, p) => sum + p.timeSpent, 0)
+        .reduce((sum, t) => sum + t.activeSeconds, 0)
       weeklyActivity.push({ day: dayNames[d.getDay()], hours: Math.round(dayMs / 3600 * 10) / 10 })
     }
 
@@ -148,6 +159,10 @@ export async function GET(request: NextRequest) {
       return la >= todayStart && la <= todayEnd && p.completionStatus === 'done'
     }).length
 
+    const bestQuizScore = attempts.length > 0
+      ? Math.round(Math.max(...attempts.map(a => a.totalQuestions > 0 ? (a.correctCount / a.totalQuestions) * 100 : 0)))
+      : 0
+
     return NextResponse.json({
       user: { name: user.name, email: user.email, studentId: user.studentId, institution: user.institution },
       progress: progress ? { xp: progress.xp, level: progress.level } : null,
@@ -159,6 +174,7 @@ export async function GET(request: NextRequest) {
         date: a.completedAt.toISOString().split('T')[0],
       })),
       averageQuizScore: avgScore,
+      bestQuizScore,
       totalQuizAttempts: attempts.length,
       highScoreQuizCount,
       streak: { current: currentStreak, longest: longestStreak, totalDays: totalActiveDays },

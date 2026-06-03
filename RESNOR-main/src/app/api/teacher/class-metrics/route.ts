@@ -1,22 +1,43 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import ZAI from 'z-ai-web-dev-sdk'
 
 export async function GET() {
   try {
-    // Class overview metrics
     const totalStudents = await db.user.count({ where: { role: 'student' } })
     const totalMaterials = await db.material.count()
-    const allProgress = await db.materialProgress.findMany()
-    const doneCount = allProgress.filter(p => p.completionStatus === 'done').length
-    const avgCompletionRate = totalMaterials > 0 ? Math.round((doneCount / (totalMaterials * totalStudents)) * 100) : 0
 
-    const allAttempts = await db.quizAttempt.findMany()
-    const avgQuizScore = allAttempts.length > 0
-      ? Math.round(allAttempts.reduce((s, a) => s + a.score, 0) / allAttempts.length * 10) / 10
+    const materialProgressRecords = await db.materialProgress.findMany({
+      select: { completionStatus: true },
+    })
+    const totalProgressRecords = materialProgressRecords.length
+    const doneCount = materialProgressRecords.filter(p => p.completionStatus === 'done').length
+    const avgCompletionRate = totalProgressRecords > 0
+      ? Math.round((doneCount / totalProgressRecords) * 100)
       : 0
 
-    // Per-topic completion rates
+    const allAttempts = await db.quizAttempt.findMany({
+      select: { score: true },
+    })
+    const avgQuizScore = allAttempts.length > 0
+      ? Math.round(
+          (allAttempts.reduce((s, a) => s + a.score, 0) / allAttempts.length) * 10
+        ) / 10
+      : 0
+
+    const activeThreshold = new Date(Date.now() - 7 * 86400000)
+    const studentIds = await db.user.findMany({
+      where: { role: 'student' },
+      select: { id: true },
+    })
+    const studentIdSet = new Set(studentIds.map(s => s.id))
+
+    const activeGroups = await db.telemetryRecord.groupBy({
+      by: ['studentId'],
+      where: { createdAt: { gte: activeThreshold } },
+      _count: true,
+    })
+    const activeStudents = activeGroups.filter(g => studentIdSet.has(g.studentId)).length
+
     const topics = await db.topic.findMany({
       include: { materials: true, course: true },
     })
@@ -24,7 +45,10 @@ export async function GET() {
     const topicMetrics = await Promise.all(topics.map(async (topic) => {
       const materialIds = topic.materials.map(m => m.id)
       const topicProgress = materialIds.length > 0
-        ? await db.materialProgress.findMany({ where: { materialId: { in: materialIds } } })
+        ? await db.materialProgress.findMany({
+            where: { materialId: { in: materialIds } },
+            select: { completionStatus: true },
+          })
         : []
       const topicDone = topicProgress.filter(p => p.completionStatus === 'done').length
       const topicInProgress = topicProgress.filter(p => p.completionStatus === 'in_progress').length
@@ -41,11 +65,13 @@ export async function GET() {
       }
     }))
 
-    // Recent activity
     const recentAttempts = await db.quizAttempt.findMany({
       take: 5,
       orderBy: { completedAt: 'desc' },
-      include: { student: { select: { name: true } }, quiz: { include: { topic: { select: { name: true } } } } },
+      include: {
+        student: { select: { name: true } },
+        quiz: { include: { topic: { select: { name: true } } } },
+      },
     })
 
     const recentActivity = recentAttempts.map(a => ({
@@ -56,22 +82,28 @@ export async function GET() {
       time: a.completedAt,
     }))
 
-    // Score distribution
+    // Score distribution — one student per range based on their avg score
+    const attemptsByStudent = await db.quizAttempt.groupBy({
+      by: ['studentId'],
+      _avg: { score: true },
+    })
+
     const scoreRanges = [
       { range: '0-20', count: 0 }, { range: '20-40', count: 0 },
       { range: '40-60', count: 0 }, { range: '60-80', count: 0 },
       { range: '80-100', count: 0 },
     ]
-    for (const a of allAttempts) {
-      if (a.score <= 20) scoreRanges[0].count++
-      else if (a.score <= 40) scoreRanges[1].count++
-      else if (a.score <= 60) scoreRanges[2].count++
-      else if (a.score <= 80) scoreRanges[3].count++
+    for (const g of attemptsByStudent) {
+      const avg = g._avg.score ?? 0
+      if (avg <= 20) scoreRanges[0].count++
+      else if (avg <= 40) scoreRanges[1].count++
+      else if (avg <= 60) scoreRanges[2].count++
+      else if (avg <= 80) scoreRanges[3].count++
       else scoreRanges[4].count++
     }
 
     return NextResponse.json({
-      overview: { totalStudents, avgCompletionRate, avgQuizScore, totalMaterials },
+      overview: { totalStudents, avgCompletionRate, avgQuizScore, activeStudents, totalMaterials },
       topicMetrics,
       recentActivity,
       scoreDistribution: scoreRanges,

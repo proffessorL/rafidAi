@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -960,6 +960,50 @@ export default function CourseCatalog() {
   const [sortBy, setSortBy] = useState<string>("popular");
   const [detailCourse, setDetailCourse] = useState<Course | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  // Fetch real course data from API and merge with mock data
+  useEffect(() => {
+    const studentId = new URLSearchParams(window.location.search).get('student_id') || ''
+    fetch(`/api/courses${studentId ? `?student_id=${studentId}` : ''}`)
+      .then(r => r.json())
+      .then(res => {
+        if (res.error || !res.courses?.length) return
+        const apiCourses: Course[] = res.courses.map((c: any) => {
+          const mock = MOCK_COURSES.find(m => m.code === c.code)
+          const totalMaterials = c.topics?.reduce((s: number, t: any) => s + (t._count?.materials || t.materials?.length || 0), 0) || 0
+          return {
+            id: c.id,
+            code: c.code,
+            title: c.name,
+            instructor: mock?.instructor || 'Instructor',
+            category: mock?.category || 'General',
+            difficulty: (mock?.difficulty || 'Beginner') as Difficulty,
+            duration: mock?.duration || `${totalMaterials * 30} min`,
+            enrolledCount: c._count?.enrollments || 0,
+            rating: mock?.rating || 0,
+            reviewCount: mock?.reviewCount || 0,
+            description: c.description || '',
+            syllabus: c.topics?.map((t: any) => t.name) || [],
+            prerequisites: mock?.prerequisites || [],
+            thumbnail: mock?.thumbnail || '',
+            isEnrolled: c.isEnrolled || false,
+            progress: c.progress || 0,
+            reviews: mock?.reviews || [],
+            relatedCourseIds: mock?.relatedCourseIds || [],
+          }
+        })
+        setCourses(prev => {
+          const merged = [...apiCourses]
+          for (const mock of MOCK_COURSES) {
+            if (!apiCourses.find(a => a.code === mock.code)) {
+              merged.push(mock)
+            }
+          }
+          return merged
+        })
+      })
+      .catch(() => {}) // fallback to mock data
+  }, [])
 
   const featuredCourse = useMemo(
     () => courses.find((c) => c.id === FEATURED_COURSE_ID) ?? courses[0],

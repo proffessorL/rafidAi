@@ -1,22 +1,14 @@
 import { PrismaClient } from '@prisma/client'
 const db = new PrismaClient()
-
 async function main() {
-  const total = await db.telemetryRecord.count()
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const todayCount = await db.telemetryRecord.count({ where: { createdAt: { gte: today } } })
-  const newest = await db.telemetryRecord.findFirst({ orderBy: { createdAt: 'desc' } })
-  const oldest = await db.telemetryRecord.findFirst({ orderBy: { createdAt: 'asc' } })
-  const studyPages = ['quiz', 'tutor', 'wellbeing', 'notes', 'gamification', 'planner', 'forum', 'explain-mistake', 'resources', 'leaderboard']
-  const studyCount = await db.telemetryRecord.count({ where: { pageId: { in: studyPages } } })
-
-  console.log('Total telemetry records:', total)
-  console.log('Today\'s records:', todayCount)
-  console.log('Study page records:', studyCount)
-  console.log('Newest record:', newest?.createdAt)
-  console.log('Oldest record:', oldest?.createdAt)
-  console.log('Date range covers', oldest && newest ? `${Math.round((newest.createdAt.getTime() - oldest.createdAt.getTime()) / 86400000)} days` : 'N/A')
+  const user = await db.user.findFirst({ select: { id: true, name: true } })
+  if (!user) { console.log('No user found'); return }
+  const count = await db.telemetryRecord.count({ where: { studentId: user.id } })
+  const last5 = await db.telemetryRecord.findMany({ where: { studentId: user.id }, orderBy: { createdAt: 'desc' }, take: 5, select: { pageId: true, activeSeconds: true, tabFocused: true, createdAt: true } })
+  const totalActive = await db.telemetryRecord.aggregate({ where: { studentId: user.id }, _sum: { activeSeconds: true } })
+  console.log('User:', user.name, user.id)
+  console.log('Total telemetry records:', count)
+  console.log('Total activeSeconds:', totalActive._sum.activeSeconds, '=', Math.floor((totalActive._sum.activeSeconds || 0) / 60), 'minutes')
+  console.log('Last 5:', JSON.stringify(last5, null, 2))
 }
-
-main().then(() => db.$disconnect())
+main().then(() => process.exit(0))

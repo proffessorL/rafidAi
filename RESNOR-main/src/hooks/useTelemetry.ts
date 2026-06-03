@@ -19,7 +19,7 @@ export function useTelemetry() {
   const triggeredRef = useRef(false)
 
   function sendHeartbeat(page: string) {
-    if (!authUser?.id) return
+    if (!authUser?.id || authUser.role === 'teacher') return
     const now = Date.now()
     const delta = Math.round((now - lastSentRef.current) / 1000)
     if (delta < 5) return

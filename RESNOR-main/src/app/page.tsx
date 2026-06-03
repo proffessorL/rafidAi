@@ -42,7 +42,7 @@ import { useTelemetry } from '@/hooks/useTelemetry'
 // Feature imports
 import GrowthDashboard from '@/components/dashboard/GrowthDashboard'
 import AITutor from '@/components/tutor/AITutor'
-import QuizGenerator from '@/components/quiz/QuizGenerator'
+import QuizPage from '@/components/quiz/QuizPage'
 import DigitalTwin from '@/components/digital-twin/DigitalTwin'
 import ExplainMistake from '@/components/explain-mistake/ExplainMistake'
 import EngagementTracker from '@/components/engagement/EngagementTracker'
@@ -192,8 +192,9 @@ function QuickStats() {
         fetch(`/api/engagement/screen-time?student_id=${authUser.id}&tz=${tz}`).then(r => r.json().catch(() => ({}))),
       ])
         .then(([streakData, quizData, statsData, screenData]) => {
-          const quizAvg = quizData.attempts?.length
-            ? Math.round(quizData.attempts.reduce((sum: number, a: any) => sum + a.score, 0) / quizData.attempts.length)
+          const recent = quizData.attempts?.slice(0, 10)
+          const quizAvg = recent?.length
+            ? Math.round(recent.reduce((sum: number, a: any) => sum + a.score, 0) / recent.length)
             : 0
           setStats((prev) => ({
             streak: streakData.currentStreak ?? 0,
@@ -853,7 +854,7 @@ function NotificationBell() {
 const pageComponents: Record<PageKey, React.ComponentType> = {
   'dashboard': GrowthDashboard,
   'tutor': AITutor,
-  'quiz': QuizGenerator,
+  'quiz': QuizPage,
   'digital-twin': DigitalTwin,
   'explain-mistake': ExplainMistake,
   'peer-comparison': PeerComparison,
@@ -935,7 +936,7 @@ function ScreenTimeBadge() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!authUser?.id) return
+    if (!authUser?.id || authUser?.role === 'teacher') return
     const fetchTime = () => {
       const tz = -new Date().getTimezoneOffset()
       fetch(`/api/gamification/screen-time-today?student_id=${authUser.id}&tz=${tz}`)

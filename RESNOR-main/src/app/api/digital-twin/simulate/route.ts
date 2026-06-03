@@ -118,7 +118,6 @@ export async function POST(request: NextRequest) {
         db.telemetryRecord.findMany({
           where: { studentId: userId, tabFocused: true, pageId: { in: STUDY_PAGE_IDS } },
           orderBy: { createdAt: 'desc' },
-          take: 500,
         }),
         db.misconceptionLog.findMany({
           where: { studentId: userId },

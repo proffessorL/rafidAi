@@ -73,12 +73,13 @@ export async function GET(request: Request) {
       orderBy: { completedAt: 'desc' },
     })
 
+    const recentQuizzes = quizAttempts.slice(0, 10)
     const totalQuizzes = quizAttempts.length
-    const avgScore = totalQuizzes > 0
-      ? Math.round(quizAttempts.reduce((sum, q) => sum + (q.totalQuestions > 0 ? (q.correctCount / q.totalQuestions) * 100 : 0), 0) / totalQuizzes)
+    const avgScore = recentQuizzes.length > 0
+      ? Math.round(recentQuizzes.reduce((sum, q) => sum + (q.totalQuestions > 0 ? (q.correctCount / q.totalQuestions) * 100 : 0), 0) / recentQuizzes.length)
       : 0
-    const totalCorrect = quizAttempts.reduce((sum, q) => sum + q.correctCount, 0)
-    const totalQuestions = quizAttempts.reduce((sum, q) => sum + q.totalQuestions, 0)
+    const totalCorrect = recentQuizzes.reduce((sum, q) => sum + q.correctCount, 0)
+    const totalQuestions = recentQuizzes.reduce((sum, q) => sum + q.totalQuestions, 0)
 
     // 6. Material progress (courses)
     const materialProgress = await db.materialProgress.findMany({

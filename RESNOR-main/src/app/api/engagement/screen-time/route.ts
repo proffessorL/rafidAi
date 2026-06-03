@@ -34,9 +34,8 @@ export async function GET(request: Request) {
     if (!studentId) return NextResponse.json({ error: 'student_id is required' }, { status: 400 })
 
     const now = new Date()
-    const tzOffset = parseInt(searchParams.get('tz') || '0')
-    const localNow = new Date(now.getTime() + tzOffset * 60000)
-    const todayStart = new Date(new Date(localNow.getFullYear(), localNow.getMonth(), localNow.getDate()).getTime() - tzOffset * 60000)
+    const todayStart = new Date(now)
+    todayStart.setHours(0, 0, 0, 0)
     const sevenDaysAgo = new Date(todayStart.getTime() - 6 * 86400000)
 
     const records = await db.telemetryRecord.findMany({
@@ -80,16 +79,20 @@ export async function GET(request: Request) {
     // ── 7-day daily totals ──
     const dailyTotals: { date: string; label: string; total: number; active: number; passive: number }[] = []
     for (let i = 6; i >= 0; i--) {
-      const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i)
-      const dayEnd = new Date(day.getTime() + 86400000)
-      const dayRecords = records.filter((r) => r.createdAt >= day && r.createdAt < dayEnd)
+      const d = new Date(now)
+      d.setDate(d.getDate() - i)
+      const dayStart = new Date(d)
+      dayStart.setHours(0, 0, 0, 0)
+      const dayEnd = new Date(d)
+      dayEnd.setHours(23, 59, 59, 999)
+      const dayRecords = records.filter((r) => r.createdAt >= dayStart && r.createdAt <= dayEnd)
       const dayActive = dayRecords.filter((r) => classifyRecord(r.interactionCount, r.tabFocused) === 'active')
         .reduce((s, r) => s + r.activeSeconds, 0)
       const dayPassive = dayRecords.filter((r) => classifyRecord(r.interactionCount, r.tabFocused) === 'passive')
         .reduce((s, r) => s + r.activeSeconds, 0)
       dailyTotals.push({
-        date: day.toISOString().split('T')[0],
-        label: day.toLocaleDateString('en-US', { weekday: 'short' }),
+        date: dayStart.toISOString().split('T')[0],
+        label: dayStart.toLocaleDateString('en-US', { weekday: 'short' }),
         total: dayActive + dayPassive,
         active: dayActive,
         passive: dayPassive,
@@ -115,6 +118,13 @@ export async function GET(request: Request) {
           feature: '',
         }
 
+    // ── Weekly focused study hours (from engagement score, matches CGPA predictor) ──
+    const engagementScore = await db.engagementScore.findUnique({
+      where: { studentId },
+      select: { weeklyActiveHours: true },
+    })
+    const weeklyActiveHours = engagementScore?.weeklyActiveHours || 0
+
     return NextResponse.json({
       today: {
         totalSeconds: todayTotal,
@@ -126,6 +136,7 @@ export async function GET(request: Request) {
       features,
       dailyTotals,
       insight,
+      weeklyActiveHours,
     })
   } catch (error) {
     console.error('Screen time error:', error)

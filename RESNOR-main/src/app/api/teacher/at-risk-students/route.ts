@@ -8,7 +8,11 @@ export async function GET() {
     const atRiskStudents = await Promise.all(students.map(async (student) => {
       const engagement = await db.engagementScore.findUnique({ where: { studentId: student.id } })
       const streak = await db.streak.findUnique({ where: { studentId: student.id } })
-      const attempts = await db.quizAttempt.findMany({ where: { studentId: student.id } })
+      const attempts = await db.quizAttempt.findMany({
+        where: { studentId: student.id },
+        orderBy: { completedAt: 'desc' },
+        take: 10,
+      })
       const avgScore = attempts.length > 0 ? attempts.reduce((s, a) => s + a.score, 0) / attempts.length : 0
 
       const engagementScore = engagement?.overallScore || 0
