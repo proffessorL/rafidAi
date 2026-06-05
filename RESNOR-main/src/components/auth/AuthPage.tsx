@@ -612,21 +612,21 @@ export default function AuthPage() {
                       className="w-full text-left flex items-center justify-between px-3 py-2 rounded-lg bg-card hover:bg-accent transition-colors text-xs group"
                     >
                       <span className="text-muted-foreground">
-                        <span className="font-medium text-foreground">Student:</span> rafiq@diu.edu.bd
+                        <span className="font-medium text-foreground">Student:</span> ayesha@diu.edu.bd
                       </span>
                       <span className="text-[10px] text-emerald-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity">Click to fill</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => {
-                        setEmail('dr.khan@diu.edu.bd')
+                        setEmail('dr.kamal@diu.edu.bd')
                         setPassword('demo123')
                         setRole('teacher')
                       }}
                       className="w-full text-left flex items-center justify-between px-3 py-2 rounded-lg bg-card hover:bg-accent transition-colors text-xs group"
                     >
                       <span className="text-muted-foreground">
-                        <span className="font-medium text-foreground">Teacher:</span> dr.khan@diu.edu.bd
+                        <span className="font-medium text-foreground">Teacher:</span> dr.kamal@diu.edu.bd
                       </span>
                       <span className="text-[10px] text-emerald-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity">Click to fill</span>
                     </button>

@@ -22,7 +22,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { title, topicId, difficulty, timeLimit, questions, teacherId } = body
+    const { title, topicId, difficulty, timeLimit, dueDate, questions, teacherId } = body
 
     if (!title || !questions?.length) {
       return NextResponse.json({ error: 'Title and questions are required' }, { status: 400 })
@@ -54,6 +54,7 @@ export async function POST(request: Request) {
         topicId: resolvedTopicId,
         difficulty: difficulty || 'medium',
         timeLimit: timeLimit || 600,
+        dueDate: dueDate ? new Date(dueDate) : null,
         teacherId: teacherId || 'teacher_001',
         questions: {
           create: questions.map((q: any) => ({

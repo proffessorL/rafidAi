@@ -54,6 +54,7 @@ model User {
   studyGroupMembers  StudyGroupMember[]
   resources         Resource[]
   wellbeingAnalytics WellbeingAnalytics?
+  deathWeekPlans    DeathWeekPlan[]
 }
 
 model AuthSession {
@@ -144,7 +145,9 @@ model Quiz {
   title       String
   difficulty  String   @default("medium") // easy, medium, hard
   timeLimit   Int      @default(300) // seconds
-  teacherId   String?  // non-null = teacher-created quiz
+  teacherId   String?   // non-null = teacher-created quiz
+  dueDate     DateTime?
+  maxAttempts Int      @default(3)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -747,4 +750,20 @@ model StudyGroupMember {
   student User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, studentId])
+}
+
+model DeathWeekPlan {
+  id        String   @id @default(cuid())
+  userId    String
+  weekName  String
+  startDate DateTime
+  endDate   DateTime
+  subjects  String?  // JSON array of tasks
+  schedule  String?  // JSON (trigger type)
+  goals     String?  // JSON array of goals
+  progress  Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

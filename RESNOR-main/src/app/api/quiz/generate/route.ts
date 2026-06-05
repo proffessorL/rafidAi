@@ -167,11 +167,11 @@ export async function POST(request: Request) {
                 content: `You are a quiz generator. Generate exactly ${count} multiple-choice questions covering these topics: ${topicNames.join(', ')}. Difficulty: ${difficulty || 'medium'}.
 
 Return ONLY valid JSON with this exact structure (no markdown, no code fences):
-{"questions":[{"question":"...","options":["A","B","C","D"],"correctIndex":0,"explanation":"..."}]}
+{"questions":[{"question":"What is the time complexity of binary search?","options":["O(n)","O(log n)","O(n log n)","O(n²)"],"correctIndex":1,"explanation":"Binary search halves the search space each step, giving O(log n) time."}]}
 
 Rules:
-- Each question must have exactly 4 options
-- correctIndex must be 0, 1, 2, or 3
+- "options" must be an array of exactly 4 strings — each is the option TEXT ONLY, NO letter prefixes like "A)" or "B)"
+- correctIndex must be 0, 1, 2, or 3 (the index of the correct option in the array)
 - explanations should be concise and educational
 - Mix questions across all provided topics
 - Make sure questions are appropriate for ${difficulty || 'medium'} difficulty level
