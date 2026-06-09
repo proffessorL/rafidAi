@@ -589,7 +589,8 @@ export default function Gamification() {
   useEffect(() => {
     if (!authUser?.id) return
     const fetchAll = () => {
-      fetch(`/api/gamification/streak-calendar?student_id=${authUser.id}&year=${year}&month=${month}`)
+      const tz = -new Date().getTimezoneOffset()
+      fetch(`/api/gamification/streak-calendar?student_id=${authUser.id}&year=${year}&month=${month}&tz=${tz}`)
         .then((r) => r.json())
         .then((data) => {
           if (data.days) setStreakDays(data.days)

@@ -6,8 +6,9 @@ const STUDY_PAGE_IDS = [
   'planner', 'forum', 'explain-mistake', 'resources', 'leaderboard',
 ]
 
-function toLocalDateStr(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+function tzDateKey(date: Date, tzMs: number): string {
+  const local = new Date(date.getTime() + tzMs)
+  return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, '0')}-${String(local.getUTCDate()).padStart(2, '0')}`
 }
 
 export async function GET(request: Request) {
@@ -16,12 +17,14 @@ export async function GET(request: Request) {
     const studentId = searchParams.get('student_id')
     if (!studentId) return NextResponse.json({ error: 'student_id required' }, { status: 400 })
 
+    const tzOffset = parseInt(searchParams.get('tz') || '0')
+    const tzMs = tzOffset * 60000
     const year = parseInt(searchParams.get('year') || '') || new Date().getFullYear()
     const month = parseInt(searchParams.get('month') || '') || new Date().getMonth() + 1
 
     // --- Month calendar data ---
-    const monthStart = new Date(year, month - 1, 1)
-    const monthEnd = new Date(year, month, 0, 23, 59, 59, 999)
+    const monthStart = new Date(Date.UTC(year, month - 1, 1) - tzMs)
+    const monthEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999) - tzMs)
 
     const records = await db.telemetryRecord.findMany({
       where: {
@@ -33,7 +36,7 @@ export async function GET(request: Request) {
       select: { activeSeconds: true, createdAt: true },
     })
 
-    const daysInMonth = monthEnd.getDate()
+    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate()
     const dayMap = new Map<string, number>()
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
@@ -41,7 +44,7 @@ export async function GET(request: Request) {
     }
 
     for (const r of records) {
-      const dateKey = toLocalDateStr(r.createdAt)
+      const dateKey = tzDateKey(r.createdAt, tzMs)
       if (dayMap.has(dateKey)) {
         dayMap.set(dateKey, dayMap.get(dateKey)! + r.activeSeconds)
       }
@@ -53,9 +56,9 @@ export async function GET(request: Request) {
     }))
 
     // --- Streak stats: look back up to 365 days ---
-    const streakStart = new Date()
-    streakStart.setFullYear(streakStart.getFullYear() - 1)
-    streakStart.setHours(0, 0, 0, 0)
+    const now = new Date()
+    const userNow = new Date(now.getTime() + tzMs)
+    const streakStart = new Date(Date.UTC(userNow.getUTCFullYear() - 1, userNow.getUTCMonth(), userNow.getUTCDate()) - tzMs)
 
     const streakRecords = await db.telemetryRecord.findMany({
       where: {
@@ -69,14 +72,15 @@ export async function GET(request: Request) {
 
     const streakDayMap = new Map<string, number>()
     for (const r of streakRecords) {
-      const dateKey = toLocalDateStr(r.createdAt)
+      const dateKey = tzDateKey(r.createdAt, tzMs)
       streakDayMap.set(dateKey, (streakDayMap.get(dateKey) || 0) + r.activeSeconds)
     }
 
     const allDates: string[] = []
     const d = new Date(streakStart)
-    while (d <= new Date()) {
-      allDates.push(toLocalDateStr(d))
+    const todayKey = tzDateKey(now, tzMs)
+    while (tzDateKey(d, 0) <= todayKey) {
+      allDates.push(tzDateKey(d, tzMs))
       d.setDate(d.getDate() + 1)
     }
 

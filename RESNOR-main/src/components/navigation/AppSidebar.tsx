@@ -42,7 +42,7 @@ function QuickStats() {
       const tz = -new Date().getTimezoneOffset()
 
       Promise.all([
-        fetch(`/api/gamification/streak-calendar?student_id=${authUser.id}&year=${year}&month=${month}`).then(r => r.json()),
+        fetch(`/api/gamification/streak-calendar?student_id=${authUser.id}&year=${year}&month=${month}&tz=${tz}`).then(r => r.json()),
         fetch(`/api/quiz/history?student_id=${authUser.id}`).then(r => r.json()),
         fetch(`/api/gamification/stats?student_id=${authUser.id}`).then(r => r.json()),
         fetch(`/api/engagement/screen-time?student_id=${authUser.id}&tz=${tz}`).then(r => r.json().catch(() => ({}))),
