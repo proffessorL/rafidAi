@@ -500,7 +500,8 @@ export default function GrowthDashboard() {
   useEffect(() => {
     if (!authUser?.id) return
     setLoading(true)
-    fetch(`/api/dashboard/growth-metrics?student_id=${authUser.id}`)
+    const tz = -new Date().getTimezoneOffset()
+    fetch(`/api/dashboard/growth-metrics?student_id=${authUser.id}&tz=${tz}`)
       .then(r => r.json())
       .then(res => {
         if (res.error) { setError(res.error); return }

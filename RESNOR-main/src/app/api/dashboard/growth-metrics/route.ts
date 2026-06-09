@@ -6,8 +6,9 @@ const STUDY_PAGE_IDS = [
   'planner', 'forum', 'explain-mistake', 'resources', 'leaderboard',
 ]
 
-function toLocalDateStr(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+function tzDateKey(date: Date, tzMs: number): string {
+  const local = new Date(date.getTime() + tzMs)
+  return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, '0')}-${String(local.getUTCDate()).padStart(2, '0')}`
 }
 
 export async function GET(request: NextRequest) {
@@ -17,6 +18,9 @@ export async function GET(request: NextRequest) {
     if (!studentId) {
       return NextResponse.json({ error: 'student_id is required' }, { status: 400 })
     }
+
+    const tzOffset = parseInt(searchParams.get('tz') || '0')
+    const tzMs = tzOffset * 60000
 
     // 1. User info
     const user = await db.user.findUnique({
@@ -51,9 +55,9 @@ export async function GET(request: NextRequest) {
     const highScoreQuizCount = attempts.filter(a => a.totalQuestions > 0 && (a.correctCount / a.totalQuestions) >= 0.8).length
 
     // 5. Streak (computed on-the-fly from telemetry, same as gamification calendar)
-    const streakStart = new Date()
-    streakStart.setFullYear(streakStart.getFullYear() - 1)
-    streakStart.setHours(0, 0, 0, 0)
+    const now = new Date()
+    const userNow = new Date(now.getTime() + tzMs)
+    const streakStart = new Date(Date.UTC(userNow.getUTCFullYear() - 1, userNow.getUTCMonth(), userNow.getUTCDate()) - tzMs)
 
     const streakRecords = await db.telemetryRecord.findMany({
       where: {
@@ -67,14 +71,15 @@ export async function GET(request: NextRequest) {
 
     const streakDayMap = new Map<string, number>()
     for (const r of streakRecords) {
-      const dateKey = toLocalDateStr(r.createdAt)
+      const dateKey = tzDateKey(r.createdAt, tzMs)
       streakDayMap.set(dateKey, (streakDayMap.get(dateKey) || 0) + r.activeSeconds)
     }
 
     const allDates: string[] = []
     const d = new Date(streakStart)
-    while (d <= new Date()) {
-      allDates.push(toLocalDateStr(d))
+    const todayKey = tzDateKey(now, tzMs)
+    while (tzDateKey(d, tzMs) <= todayKey) {
+      allDates.push(tzDateKey(d, tzMs))
       d.setDate(d.getDate() + 1)
     }
 
