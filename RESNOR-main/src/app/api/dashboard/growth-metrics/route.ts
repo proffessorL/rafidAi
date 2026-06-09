@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
 
     const tzOffset = parseInt(searchParams.get('tz') || '0')
     const tzMs = tzOffset * 60000
+    const now = new Date()
 
     // 1. User info
     const user = await db.user.findUnique({
@@ -55,7 +56,6 @@ export async function GET(request: NextRequest) {
     const highScoreQuizCount = attempts.filter(a => a.totalQuestions > 0 && (a.correctCount / a.totalQuestions) >= 0.8).length
 
     // 5. Streak (computed on-the-fly from telemetry, same as gamification calendar)
-    const now = new Date()
     const userNow = new Date(now.getTime() + tzMs)
     const streakStart = new Date(Date.UTC(userNow.getUTCFullYear() - 1, userNow.getUTCMonth(), userNow.getUTCDate()) - tzMs)
 
@@ -129,7 +129,6 @@ export async function GET(request: NextRequest) {
     }
 
     // 9. Weekly activity (last 7 days) — from telemetry (study pages only)
-    const now = new Date()
     const sevenDaysAgo = new Date(now)
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
     const weekTelemetry = await db.telemetryRecord.findMany({
