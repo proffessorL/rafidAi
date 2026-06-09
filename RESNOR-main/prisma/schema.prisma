@@ -52,9 +52,12 @@ model User {
   companionInteractions CompanionInteraction[]
   voiceInteractions  VoiceInteraction[]
   studyGroupMembers  StudyGroupMember[]
-  resources         Resource[]
-  wellbeingAnalytics WellbeingAnalytics?
-  deathWeekPlans    DeathWeekPlan[]
+  resources                Resource[]
+  wellbeingAnalytics       WellbeingAnalytics?
+  deathWeekPlans           DeathWeekPlan[]
+  enhanceKnowledgeSessions EnhanceKnowledgeSession[]
+  notificationInteractions NotificationInteraction[]
+  activityWindows          UserActivityWindow[]
 }
 
 model AuthSession {
@@ -264,17 +267,49 @@ model EarnedBadge {
 }
 
 model Notification {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   studentId   String
   title       String
   message     String
-  type        String   @default("info") // info, warning, achievement, reminder
-  isRead      Boolean  @default(false)
+  type        String    @default("info") // info, warning, achievement, reminder, proactive
+  isRead      Boolean   @default(false)
   actionUrl   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  source      String    @default("system") // system, proactive
+  isProactive Boolean   @default(false)
+  scheduledFor DateTime?
+  priorityScore Int     @default(5) // 1-10
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  student     User                     @relation(fields: [studentId], references: [id])
+  interactions NotificationInteraction[]
+}
+
+model NotificationInteraction {
+  id             String   @id @default(cuid())
+  notificationId String
+  studentId      String
+  action         String   // opened, dismissed, snoozed, clicked, delivered
+  createdAt      DateTime @default(now())
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  student      User         @relation(fields: [studentId], references: [id])
+}
+
+model UserActivityWindow {
+  id              String   @id @default(cuid())
+  studentId       String
+  dayOfWeek       Int      // 0=Sunday, 1=Monday ... 6=Saturday
+  hourOfDay       Int      // 0-23
+  engagementScore Float    @default(0) // 0-1, higher = more engaged
+  notificationOpens Int    @default(0)
+  notificationDismissals Int @default(0)
+  sampleCount     Int      @default(0)
+  updatedAt       DateTime @updatedAt
 
   student User @relation(fields: [studentId], references: [id])
+
+  @@unique([studentId, dayOfWeek, hourOfDay])
 }
 
 model TelemetryRecord {
@@ -766,4 +801,36 @@ model DeathWeekPlan {
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EnhanceKnowledgeSession {
+  id              String   @id @default(cuid())
+  studentId       String
+  topic           String
+  totalQuestions  Int
+  totalCorrect    Int      @default(0)
+  totalRemedial   Int      @default(0)
+  completedAt     DateTime @default(now())
+
+  student  User                      @relation(fields: [studentId], references: [id])
+  questions EnhanceKnowledgeQuestion[]
+}
+
+model EnhanceKnowledgeQuestion {
+  id               String  @id @default(cuid())
+  sessionId        String
+  questionText     String
+  optionA          String
+  optionB          String
+  optionC          String
+  optionD          String
+  correctKey       String
+  explanation      String?
+  difficulty       String
+  questionOrder    Int
+  isRemedial       Boolean @default(false)
+  parentQuestionId String?
+  answeredCorrectly Boolean?
+
+  session EnhanceKnowledgeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }

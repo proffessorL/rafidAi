@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { createHash, randomBytes } from 'crypto'
+import { createNotification } from '@/lib/services/notification-service'
 
 function hashPassword(password: string): string {
   return createHash('sha256').update(password + '_resnor_salt_2024').digest('hex')
@@ -88,6 +89,14 @@ export async function POST(request: NextRequest) {
         interactionDensity: 0,
       },
     })
+
+    createNotification({
+      studentId: user.id,
+      title: '🎉 Welcome to Resnor!',
+      message: `Hi ${user.name || 'there'}! Start your learning journey — take a quiz, study materials, or explore the app.`,
+      type: 'info',
+      actionUrl: '/dashboard',
+    }).catch(() => {})
 
     return NextResponse.json({
       user: {

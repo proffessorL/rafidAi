@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { predict } from '@/lib/services/burnout-engine'
+import { notifyBurnoutRisk } from '@/lib/services/notification-service'
 
 export async function GET(request: Request) {
   try {
@@ -159,6 +160,10 @@ export async function GET(request: Request) {
         recommendations: JSON.stringify(recommendations),
       },
     })
+
+    if (riskLevel !== 'low') {
+      notifyBurnoutRisk({ studentId, riskLevel, riskPercentage }).catch(() => {})
+    }
 
     return NextResponse.json({
       riskPercentage,

@@ -109,7 +109,10 @@ export async function POST(request: NextRequest) {
           where: { studentId: userId },
           orderBy: { completedAt: 'desc' },
           take: 100,
-        }),
+        }).then((rows) => rows.map((q) => ({
+          ...q,
+          score: q.totalQuestions > 0 ? Math.round((q.correctCount / q.totalQuestions) * 100) : 0,
+        }))),
         db.focusSession.findMany({
           where: { studentId: userId },
           orderBy: { startedAt: 'desc' },
@@ -128,6 +131,11 @@ export async function POST(request: NextRequest) {
       ])
 
     const totalDataPoints = quizAttempts.length + focusSessions.length + telemetryRecords.length
+
+    const recentScoreList = quizAttempts.slice(0, 10).map((q) => q.score)
+    const standardAvgQuizScore = recentScoreList.length > 0
+      ? Math.round(recentScoreList.reduce((s, v) => s + v, 0) / recentScoreList.length)
+      : 0
 
     if (totalDataPoints < 8) {
       return NextResponse.json({
@@ -153,7 +161,8 @@ export async function POST(request: NextRequest) {
       telemetryRecords,
       misconceptionLogs,
       totalDataPoints,
-      engagementScore?.weeklyActiveHours ?? 0
+      engagementScore?.weeklyActiveHours ?? 0,
+      standardAvgQuizScore
     )
 
     const aiReasoning = await generateSimulationReasoning({
@@ -161,9 +170,7 @@ export async function POST(request: NextRequest) {
       impacts: result.impacts,
       quizCount: quizAttempts.length,
       sessionCount: focusSessions.length,
-      avgQuizScore: quizAttempts.length > 0
-        ? Math.round(quizAttempts.reduce((s, q) => s + (q.score ?? 0), 0) / quizAttempts.length)
-        : null,
+      avgQuizScore: quizAttempts.length > 0 ? standardAvgQuizScore : null,
       activeDays: new Set(telemetryRecords.map(t => new Date(t.createdAt).toDateString())).size,
       weakTopics: misconceptionLogs.length > 0
         ? [...new Set(misconceptionLogs.map(m => m.conceptNodeId || m.patternDescription || 'unknown'))].slice(0, 5)
@@ -189,21 +196,22 @@ function simulateScenario(
   telemetry: Array<{ createdAt: Date; activeSeconds: number }>,
   misconceptions: Array<{ conceptNodeId: string; frequencyCounter: number; mistakeType: string; patternDescription: string | null }>,
   totalData: number,
-  weeklyActiveHours: number
+  weeklyActiveHours: number,
+  standardAvgQuizScore: number
 ): SimulationResult {
   switch (scenario) {
     case 'REVIEW_BEFORE_QUIZZES':
       return simulateReviewBeforeQuizzes(quizzes, sessions)
     case 'STUDY_TWO_MORE_HOURS_WEEKLY':
-      return simulateStudyMoreHours(sessions, telemetry, quizzes, weeklyActiveHours)
+      return simulateStudyMoreHours(sessions, telemetry, quizzes, weeklyActiveHours, standardAvgQuizScore)
     case 'TAKE_SHORT_BREAKS':
       return simulateShortBreaks(sessions)
     case 'MAINTAIN_DAILY_SCHEDULE':
       return simulateDailySchedule(telemetry)
     case 'COMPLETE_MORE_PRACTICE_TESTS':
-      return simulatePracticeTests(quizzes, sessions)
+      return simulatePracticeTests(quizzes, sessions, standardAvgQuizScore)
     case 'FOCUS_ON_WEAK_TOPICS':
-      return simulateFocusWeakTopics(misconceptions, quizzes)
+      return simulateFocusWeakTopics(misconceptions, quizzes, standardAvgQuizScore)
     case 'REDUCE_LAST_MINUTE_STUDYING':
       return simulateReduceCramming(quizzes, sessions)
     case 'INCREASE_REVISION_FREQUENCY':
@@ -301,7 +309,7 @@ function simulateReviewBeforeQuizzes(
     ],
     reasoning,
     evidence: {
-      title: 'Average Quiz Score',
+      title: 'Focus & Quiz Performance',
       metrics,
       explanation: avgWith !== null && avgWithout !== null && avgWith > avgWithout
         ? `Focused study scored ${Math.round(avgWith - avgWithout)} points higher on average`
@@ -316,11 +324,10 @@ function simulateStudyMoreHours(
   sessions: Array<{ startedAt: Date; actualSeconds: number | null; duration: number | null }>,
   telemetry: Array<{ createdAt: Date; activeSeconds: number }>,
   quizzes: Array<{ score: number | null }>,
-  weeklyActiveHours: number
+  weeklyActiveHours: number,
+  standardAvgQuizScore: number
 ): SimulationResult {
-  const avgQuizScore = quizzes.length > 0
-    ? quizzes.reduce((s, q) => s + (q.score ?? 0), 0) / quizzes.length
-    : null
+  const avgQuizScore = quizzes.length > 0 ? standardAvgQuizScore : null
 
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -502,12 +509,11 @@ function simulateDailySchedule(
 
 function simulatePracticeTests(
   quizzes: Array<{ score: number | null }>,
-  sessions: Array<{ type: string }>
+  sessions: Array<{ type: string }>,
+  standardAvgQuizScore: number
 ): SimulationResult {
   const practiceCount = sessions.filter((s) => s.type === 'deep_focus' || s.type === 'pomodoro').length
-  const avgQuizScore = quizzes.length > 0
-    ? quizzes.reduce((s, q) => s + (q.score ?? 0), 0) / quizzes.length
-    : null
+  const avgQuizScore = quizzes.length > 0 ? standardAvgQuizScore : null
 
   const readinessEffect: EffectLevel =
     practiceCount < 3 ? 'Strong Improvement' : practiceCount < 8 ? 'Likely Improvement' : 'Minor Improvement'
@@ -553,7 +559,8 @@ function simulatePracticeTests(
 
 function simulateFocusWeakTopics(
   misconceptions: Array<{ conceptNodeId: string; frequencyCounter: number; mistakeType: string; patternDescription: string | null }>,
-  quizzes: Array<{ score: number | null }>
+  quizzes: Array<{ score: number | null }>,
+  standardAvgQuizScore: number
 ): SimulationResult {
   const topicMistakeCount: Record<string, number> = {}
   misconceptions.forEach((m) => {
@@ -568,9 +575,7 @@ function simulateFocusWeakTopics(
 
   const topMistakeType = Object.entries(mistakeTypeCounts).sort((a, b) => b[1] - a[1])[0]
   const topWeakTopic = Object.entries(topicMistakeCount).sort((a, b) => b[1] - a[1])[0]
-  const avgQuizScore = quizzes.length > 0
-    ? quizzes.reduce((s, q) => s + (q.score ?? 0), 0) / quizzes.length
-    : null
+  const avgQuizScore = quizzes.length > 0 ? standardAvgQuizScore : null
 
   const masteryEffect: EffectLevel =
     misconceptions.length >= 5 ? 'Strong Improvement' : misconceptions.length >= 2 ? 'Likely Improvement' : 'Minor Improvement'

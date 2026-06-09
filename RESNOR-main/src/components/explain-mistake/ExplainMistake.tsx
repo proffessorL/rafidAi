@@ -174,11 +174,11 @@ export default function ExplainMistake() {
   const mostCommonMistake = useMemo(() => {
     const counts: Record<string, number> = {}
     wrongQuestions.forEach((q) => {
-      const t = q.mistakeType ?? 'Unknown'
-      counts[t] = (counts[t] ?? 0) + 1
+      if (!q.mistakeType) return
+      counts[q.mistakeType] = (counts[q.mistakeType] ?? 0) + 1
     })
     const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1])
-    return sorted[0]?.[0] ?? 'None'
+    return sorted[0]?.[0] ?? ''
   }, [wrongQuestions])
 
   const selectedQuestion = useMemo(
@@ -499,11 +499,8 @@ export default function ExplainMistake() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10px] text-muted-foreground hidden sm:inline">
-              Select Attempt:
-            </span>
             <Select value={selectedAttemptId} onValueChange={handleAttemptChange}>
-              <SelectTrigger className="w-[200px] sm:w-[260px] h-8 text-xs">
+              <SelectTrigger className="w-[180px] sm:w-[240px] h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -516,6 +513,20 @@ export default function ExplainMistake() {
             </Select>
           </div>
         </div>
+        {selectedAttempt && (
+          <div className="flex items-center gap-3 mt-2 pt-2 border-t border-border/30">
+            <div className="flex items-center gap-1.5">
+              <div className="size-2 rounded-full bg-emerald-500" />
+              <span className="text-[11px] text-muted-foreground font-medium">{correctCount} correct</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="size-2 rounded-full bg-rose-500" />
+              <span className="text-[11px] text-muted-foreground font-medium">{wrongQuestions.length} wrong</span>
+            </div>
+            <div className="h-3 w-px bg-border/50" />
+            <span className="text-[11px] font-semibold text-foreground/80">{accuracy}% accuracy</span>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 flex min-h-0 overflow-hidden">
@@ -617,11 +628,11 @@ export default function ExplainMistake() {
 
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
           <div className="shrink-0 border-b bg-card/40 backdrop-blur-xl px-4 py-2 flex items-center gap-1.5">
-            <div className="relative flex items-center bg-white/[0.01] backdrop-blur-sm border border-white/5 p-1 rounded-xl">
+            <div className="relative flex items-center bg-muted/30 backdrop-blur-sm border border-border/40 p-1 rounded-xl">
               <button
                 onClick={() => setActiveTab('diagnosis')}
                 className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-200 ${
-                  activeTab === 'diagnosis' ? 'text-white dark:text-white font-medium' : 'text-slate-400 hover:text-slate-200'
+                  activeTab === 'diagnosis' ? 'text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <Stethoscope className="size-3.5" />
@@ -629,7 +640,7 @@ export default function ExplainMistake() {
                 {activeTab === 'diagnosis' && (
                   <motion.div
                     layoutId="explainMistakeTab"
-                    className="absolute inset-0 bg-white/[0.06] border border-white/10 rounded-lg shadow-md z-0"
+                    className="absolute inset-0 bg-background/80 border border-border/30 rounded-lg shadow-sm z-0"
                     transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                   />
                 )}
@@ -637,7 +648,7 @@ export default function ExplainMistake() {
               <button
                 onClick={() => setActiveTab('mastery')}
                 className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-200 ${
-                  activeTab === 'mastery' ? 'text-white dark:text-white font-medium' : 'text-slate-400 hover:text-slate-200'
+                  activeTab === 'mastery' ? 'text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <BarChart3 className="size-3.5" />
@@ -645,7 +656,7 @@ export default function ExplainMistake() {
                 {activeTab === 'mastery' && (
                   <motion.div
                     layoutId="explainMistakeTab"
-                    className="absolute inset-0 bg-white/[0.06] border border-white/10 rounded-lg shadow-md z-0"
+                    className="absolute inset-0 bg-background/80 border border-border/30 rounded-lg shadow-sm z-0"
                     transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                   />
                 )}
@@ -653,7 +664,7 @@ export default function ExplainMistake() {
               <button
                 onClick={() => setActiveTab('misconceptions')}
                 className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-200 ${
-                  activeTab === 'misconceptions' ? 'text-white dark:text-white font-medium' : 'text-slate-400 hover:text-slate-200'
+                  activeTab === 'misconceptions' ? 'text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <Brain className="size-3.5" />
@@ -661,7 +672,7 @@ export default function ExplainMistake() {
                 {activeTab === 'misconceptions' && (
                   <motion.div
                     layoutId="explainMistakeTab"
-                    className="absolute inset-0 bg-white/[0.06] border border-white/10 rounded-lg shadow-md z-0"
+                    className="absolute inset-0 bg-background/80 border border-border/30 rounded-lg shadow-sm z-0"
                     transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                   />
                 )}

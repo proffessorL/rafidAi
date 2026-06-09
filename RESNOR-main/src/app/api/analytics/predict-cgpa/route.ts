@@ -49,11 +49,14 @@ export async function GET(request: NextRequest) {
     ])
 
     // --- Quiz metrics ---
-    const recentScores = attempts.slice(-10)
+    const recentAttempts = attempts.slice(-10)
+    const recentScores = recentAttempts.map((a) =>
+      a.totalQuestions > 0 ? Math.round((a.correctCount / a.totalQuestions) * 100) : 0
+    )
     const avgRecentScore = recentScores.length > 0
-      ? recentScores.reduce((s, a) => s + a.score, 0) / recentScores.length
+      ? recentScores.reduce((s, v) => s + v, 0) / recentScores.length
       : 0
-    const quizScoreTrend = attempts.slice(-10).map((a) => Math.round(a.score))
+    const quizScoreTrend = recentScores
     const quizCount = attempts.length
 
     // --- Completion rate ---

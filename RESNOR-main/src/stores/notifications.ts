@@ -1,12 +1,17 @@
 import { create } from 'zustand'
 
-interface ApiNotification {
+export interface ApiNotification {
   id: string
   title: string
   message: string
   type: string
-  read: boolean
+  isRead: boolean
   createdAt: string
+  actionUrl: string | null
+  source?: string
+  isProactive?: boolean
+  scheduledFor?: string | null
+  priorityScore?: number
 }
 
 interface NotificationState {
@@ -14,8 +19,11 @@ interface NotificationState {
   notifications: ApiNotification[]
   isLoading: boolean
   fetchNotifications: (token: string, studentId: string) => Promise<void>
-  markAsRead: (id: string) => void
-  markAllAsRead: () => void
+  markAsRead: (id: string, studentId: string) => void
+  markAllAsRead: (studentId: string) => void
+  dismissNotification: (id: string, studentId: string) => void
+  logInteraction: (notificationId: string, studentId: string, action: string) => void
+  triggerProactive: (studentId: string) => Promise<number>
 }
 
 export const useNotificationStore = create<NotificationState>((set, get) => ({
@@ -30,25 +38,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       })
       if (!res.ok) return
       const data = await res.json()
-      const notifs: ApiNotification[] = (data.notifications || []).map((n: any) => ({
-        ...n,
-        read: !n.isRead,
-      }))
-      const apiUnread = data.unreadCount ?? notifs.filter((n) => !n.read).length
+      const notifs: ApiNotification[] = data.notifications || []
 
+      const apiUnread = data.unreadCount ?? notifs.filter((n) => !n.isRead).length
       const counts: Record<string, number> = { notifications: apiUnread }
-
-      for (const n of notifs) {
-        if (n.read) continue
-        if (n.type === 'achievement') {
-          counts.gamification = (counts.gamification || 0) + 1
-          counts.grades = (counts.grades || 0) + 1
-        } else if (n.type === 'reminder') {
-          counts.quiz = (counts.quiz || 0) + 1
-        } else if (n.type === 'warning') {
-          // general warnings stay under notifications
-        }
-      }
 
       set({ notifications: notifs, unreadCounts: counts, isLoading: false })
     } catch {
@@ -56,12 +49,12 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     }
   },
 
-  markAsRead: (id) => {
+  markAsRead: (id, studentId) => {
     const { notifications } = get()
     const updated = notifications.map((n) =>
-      n.id === id ? { ...n, read: true } : n
+      n.id === id ? { ...n, isRead: true } : n
     )
-    const unreadCount = updated.filter((n) => !n.read).length
+    const unreadCount = updated.filter((n) => !n.isRead).length
     set({
       notifications: updated,
       unreadCounts: { ...get().unreadCounts, notifications: unreadCount },
@@ -70,20 +63,56 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     fetch('/api/notifications', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ notification_ids: [id] }),
+      body: JSON.stringify({ notification_ids: [id], student_id: studentId }),
     }).catch(() => {})
+
+    get().logInteraction(id, studentId, 'opened')
   },
 
-  markAllAsRead: () => {
+  markAllAsRead: (studentId) => {
     set({
       unreadCounts: {},
-      notifications: get().notifications.map((n) => ({ ...n, read: true })),
+      notifications: get().notifications.map((n) => ({ ...n, isRead: true })),
     })
 
     fetch('/api/notifications', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mark_all: true }),
+      body: JSON.stringify({ mark_all: true, student_id: studentId }),
     }).catch(() => {})
+  },
+
+  dismissNotification: (id, studentId) => {
+    set({ notifications: get().notifications.filter((n) => n.id !== id) })
+
+    fetch('/api/notifications', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notification_id: id }),
+    }).catch(() => {})
+
+    get().logInteraction(id, studentId, 'dismissed')
+  },
+
+  logInteraction: (notificationId, studentId, action) => {
+    fetch('/api/notifications/interact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notificationId, studentId, action }),
+    }).catch(() => {})
+  },
+
+  triggerProactive: async (studentId) => {
+    try {
+      const res = await fetch('/api/notifications/proactive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId }),
+      })
+      const data = await res.json()
+      return data.created || 0
+    } catch {
+      return 0
+    }
   },
 }))

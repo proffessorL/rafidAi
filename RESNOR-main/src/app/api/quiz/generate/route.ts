@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { notifyQuizCompleted } from '@/lib/services/notification-service'
 import Groq from 'groq-sdk'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || '' })
@@ -287,6 +288,17 @@ export async function PUT(request: Request) {
 
     const score = questions.length > 0 ? (correctCount / questions.length) * 100 : 0
     await db.quizAttempt.update({ where: { id: attempt.id }, data: { score, correctCount } })
+
+    const quiz = await db.quiz.findUnique({ where: { id: quiz_id }, select: { title: true } })
+    if (quiz) {
+      notifyQuizCompleted({
+        studentId: sid,
+        score,
+        correctCount,
+        totalQuestions: questions.length,
+        quizTitle: quiz.title,
+      }).catch(() => {})
+    }
 
     return NextResponse.json({
       attempt_id: attempt.id, score: Math.round(score * 10) / 10,

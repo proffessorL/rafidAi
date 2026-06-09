@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { notifyQuizCompleted } from '@/lib/services/notification-service'
 
 export async function POST(request: Request) {
   try {
@@ -45,6 +46,14 @@ export async function POST(request: Request) {
       },
       include: { answers: true },
     })
+
+    notifyQuizCompleted({
+      studentId,
+      score,
+      correctCount,
+      totalQuestions,
+      quizTitle: quiz.title,
+    }).catch(() => {})
 
     return NextResponse.json({ attempt, score, correctCount, totalQuestions })
   } catch (error) {

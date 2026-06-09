@@ -36,7 +36,10 @@ export async function GET(request: NextRequest) {
         where: { studentId: userId },
         orderBy: { completedAt: 'desc' },
         take: 100,
-      }),
+      }).then((rows) => rows.map((q) => ({
+        ...q,
+        score: q.totalQuestions > 0 ? Math.round((q.correctCount / q.totalQuestions) * 100) : 0,
+      }))),
       db.focusSession.findMany({
         where: { studentId: userId },
         orderBy: { startedAt: 'desc' },
@@ -58,10 +61,13 @@ export async function GET(request: NextRequest) {
       }),
       db.quizAttempt.findMany({
         where: { studentId: userId },
-        select: { id: true, score: true, completedAt: true, quiz: { select: { id: true, topicId: true, topic: { select: { id: true, name: true } } } } },
+        select: { id: true, score: true, correctCount: true, totalQuestions: true, completedAt: true, quiz: { select: { id: true, topicId: true, topic: { select: { id: true, name: true } } } } },
         orderBy: { completedAt: 'desc' },
         take: 100,
-      }),
+      }).then((rows) => rows.map((q) => ({
+        ...q,
+        score: q.totalQuestions > 0 ? Math.round((q.correctCount / q.totalQuestions) * 100) : 0,
+      }))),
       db.materialProgress.findMany({
         where: { studentId: userId },
         select: { id: true, material: { select: { topicId: true, topic: { select: { id: true, name: true } } } } },

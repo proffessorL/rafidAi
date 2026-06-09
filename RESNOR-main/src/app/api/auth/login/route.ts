@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { createHash, randomBytes } from 'crypto'
+import { createNotification } from '@/lib/services/notification-service'
 
 function hashPassword(password: string): string {
   return createHash('sha256').update(password + '_resnor_salt_2024').digest('hex')
@@ -58,6 +59,14 @@ export async function POST(request: NextRequest) {
         expiresAt,
       },
     })
+
+    createNotification({
+      studentId: user.id,
+      title: '👋 Welcome back!',
+      message: `Good to see you again${user.name ? `, ${user.name}` : ''}! Keep up your learning journey.`,
+      type: 'info',
+      actionUrl: '/dashboard',
+    }).catch(() => {})
 
     return NextResponse.json({
       user: {

@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { notifyBadgeEarned } from '@/lib/services/notification-service'
 
 const BADGE_DEFS = [
   {
@@ -102,6 +103,13 @@ export async function GET(request: Request) {
           await db.earnedBadge.create({
             data: { studentId, badgeId: badge.id },
           })
+
+          notifyBadgeEarned({
+            studentId,
+            badgeName: def.name,
+            badgeIcon: def.icon,
+            description: def.description,
+          }).catch(() => {})
         }
       }
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { motion } from 'framer-motion'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -77,106 +78,107 @@ export default function LeftPanel({
   return (
     <div className="flex flex-col h-full gap-3">
       <div className="grid grid-cols-2 gap-2">
-        <div className="bg-card/60 backdrop-blur-xl rounded-xl border border-border/50 p-2.5 flex items-center gap-2.5">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-rose-500/10 text-rose-600">
+        <div className="bg-card/60 backdrop-blur-xl rounded-xl border border-border/50 p-3 flex items-center gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-rose-500/10 text-rose-600">
             <XCircle className="size-4" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[10px] text-muted-foreground leading-tight">Wrong</p>
-            <p className="text-sm font-bold leading-tight">{wrongCount}</p>
+            <p className="text-lg font-bold leading-tight">{wrongCount}</p>
           </div>
         </div>
-        <div className="bg-card/60 backdrop-blur-xl rounded-xl border border-border/50 p-2.5 flex items-center gap-2.5">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
+        <div className="bg-card/60 backdrop-blur-xl rounded-xl border border-border/50 p-3 flex items-center gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
             <Target className="size-4" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[10px] text-muted-foreground leading-tight">Accuracy</p>
-            <p className="text-sm font-bold leading-tight">{accuracy}%</p>
+            <p className="text-lg font-bold leading-tight">{accuracy}%</p>
           </div>
         </div>
-        <div className="bg-card/60 backdrop-blur-xl rounded-xl border border-border/50 col-span-2 p-2.5 flex items-center gap-2.5">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
+        <div className="bg-card/60 backdrop-blur-xl rounded-xl border border-border/50 col-span-2 p-3 flex items-center gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
             <AlertTriangle className="size-4" />
           </div>
-          <div className="min-w-0">
-            <p className="text-[10px] text-muted-foreground leading-tight">Most Common Mistake</p>
-            <p className="text-xs font-medium truncate">{mostCommonMistake}</p>
+          <div className="min-w-0 flex-1">
+                <p className="text-[10px] text-muted-foreground leading-tight">Most Common Mistake</p>
+            <p className="text-xs font-medium truncate">
+              {mostCommonMistake ? getMistakeLabel(mostCommonMistake) : <span className="text-muted-foreground/60 italic">Analyzing...</span>}
+            </p>
           </div>
         </div>
-        <div className="bg-card/60 backdrop-blur-xl rounded-xl border border-border/50 col-span-2 p-2.5 flex items-center gap-2.5">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
+        <div className="bg-card/60 backdrop-blur-xl rounded-xl border border-border/50 col-span-2 p-3 flex items-center gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600">
             <BarChart3 className="size-4" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[10px] text-muted-foreground leading-tight">Score</p>
-            <p className="text-sm font-bold leading-tight">{attempt.score}%</p>
+            <p className="text-lg font-bold leading-tight">{attempt.score}%</p>
           </div>
         </div>
       </div>
 
-      <Card className="bg-card/60 backdrop-blur-xl">
-        <CardHeader className="p-3 pb-0">
+      <Card className="bg-card/60 backdrop-blur-xl flex-1 overflow-hidden flex flex-col">
+        <CardHeader className="p-3 pb-2 shrink-0">
           <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Question Review
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-3">
-          <div className="space-y-2">
-            {attempt.questions.map((q, idx) => {
-                const isSelected = selectedQuestion?.id === q.id
-                const label = getMistakeLabel(q.mistakeType)
-                const color = getMistakeColor(q.mistakeType)
-                return (
-                  <button
-                    key={q.id}
-                    onClick={() => onSelectQuestion(q)}
-                    className={`w-full text-left p-2.5 rounded-lg border transition-all duration-200 ${
-                      isSelected
-                        ? 'border-primary/40 bg-primary/[0.04]'
-                        : 'border-transparent hover:border-border/60 hover:bg-muted/40'
-                    } ${!q.isCorrect ? 'border-l-[3px] border-l-rose-500' : 'border-l-[3px] border-l-emerald-500'}`}
+        <CardContent className="p-3 pt-0 flex-1 overflow-y-auto scrollbar-thin space-y-1.5">
+          {attempt.questions.map((q, idx) => {
+            const isSelected = selectedQuestion?.id === q.id
+            const label = getMistakeLabel(q.mistakeType)
+            const color = getMistakeColor(q.mistakeType)
+            return (
+              <motion.button
+                key={q.id}
+                layout
+                onClick={() => onSelectQuestion(q)}
+                className={`w-full text-left p-2.5 rounded-lg border transition-all duration-200 ${
+                  isSelected
+                    ? 'border-primary/40 bg-primary/[0.04] shadow-sm'
+                    : 'border-transparent hover:border-border/60 hover:bg-muted/40'
+                } ${!q.isCorrect ? 'border-l-[3px] border-l-rose-500' : 'border-l-[3px] border-l-emerald-500'}`}
+              >
+                <div className="flex items-start gap-2.5">
+                  <div
+                    className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold mt-0.5 ${
+                      q.isCorrect
+                        ? 'bg-emerald-500/20 text-emerald-600'
+                        : 'bg-rose-500/20 text-rose-600'
+                    }`}
                   >
-                    <div className="flex items-start gap-2.5">
-                      <div
-                        className={`flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold mt-0.5 ${
-                          q.isCorrect
-                            ? 'bg-emerald-500/20 text-emerald-600'
-                            : 'bg-rose-500/20 text-rose-600'
-                        }`}
-                      >
-                        {idx + 1}
-                      </div>
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <p className="text-xs leading-relaxed line-clamp-2">{q.text}</p>
-                        {!q.isCorrect && loadingQuestionId === q.id && (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground font-medium">
-                            <Loader2 className="size-2.5 animate-spin" />
-                            Analyzing...
-                          </span>
-                        )}
-                        {!q.isCorrect && loadingQuestionId !== q.id && label && (
-                          <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded font-medium ${color}`}>
-                            {label}
-                          </span>
-                        )}
-                        {!q.isCorrect && loadingQuestionId !== q.id && !label && (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground font-medium">
-                            Click to analyze
-                          </span>
-                        )}
-                        {q.isCorrect && (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
-                            <CheckCircle2 className="size-2.5" />
-                            Correct
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
+                    {idx + 1}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="text-xs leading-relaxed line-clamp-2">{q.text}</p>
+                    {!q.isCorrect && loadingQuestionId === q.id && (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground font-medium">
+                        <Loader2 className="size-2.5 animate-spin" />
+                        Analyzing...
+                      </span>
+                    )}
+                    {!q.isCorrect && loadingQuestionId !== q.id && label && (
+                      <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded font-medium ${color}`}>
+                        {label}
+                      </span>
+                    )}
+                    {!q.isCorrect && loadingQuestionId !== q.id && !label && (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground font-medium">
+                        Click to analyze
+                      </span>
+                    )}
+                    {q.isCorrect && (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
+                        <CheckCircle2 className="size-2.5" />
+                        Correct
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </motion.button>
+            )
+          })}
         </CardContent>
       </Card>
     </div>

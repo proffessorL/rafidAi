@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { formatDistanceToNow, subMinutes, subHours, subDays } from "date-fns";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { format, isToday, isYesterday, formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Star,
@@ -10,127 +10,62 @@ import {
   Info,
   X,
   CheckCheck,
-  Trophy,
+  Trash2,
   Clock,
+  Trophy,
+  BookOpen,
   Sparkles,
+  Inbox,
+  PartyPopper,
+  ShieldAlert,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
-// --- Types ---
+import { useNotificationStore } from "@/stores/notifications";
+import { useAuthStore } from "@/stores/auth";
+import { useBrowserNotification } from "@/lib/hooks/useBrowserNotification";
 
 type NotificationType = "achievement" | "reminder" | "warning" | "info";
 
-interface Notification {
+interface NotificationData {
   id: string;
-  type: NotificationType;
+  type: string;
   title: string;
   message: string;
-  timestamp: Date;
-  read: boolean;
-  action?: { label: string; href: string };
+  createdAt: string;
+  isRead: boolean;
+  actionUrl: string | null;
+  isProactive?: boolean;
 }
 
-// --- Mock Data ---
-
-const INITIAL_NOTIFICATIONS: Notification[] = [
-  {
-    id: "1",
-    type: "achievement",
-    title: "New Achievement Unlocked!",
-    message: "You earned the 'Week Warrior' badge for studying 7 days in a row. Amazing work!",
-    timestamp: subMinutes(new Date(), 12),
-    read: false,
-    action: { label: "View Badge", href: "#" },
-  },
-  {
-    id: "2",
-    type: "reminder",
-    title: "Study Reminder",
-    message: "You haven't studied 'Organic Chemistry' in 2 days. Keep your momentum going!",
-    timestamp: subHours(new Date(), 3),
-    read: false,
-    action: { label: "Start Studying", href: "#" },
-  },
-  {
-    id: "3",
-    type: "warning",
-    title: "Assignment Deadline Approaching",
-    message: "Your 'Quantum Mechanics Problem Set 4' is due in 18 hours. Don't forget to submit!",
-    timestamp: subHours(new Date(), 6),
-    read: false,
-    action: { label: "Go to Assignment", href: "#" },
-  },
-  {
-    id: "4",
-    type: "info",
-    title: "New Material Available",
-    message: "A new chapter 'Thermodynamics: Entropy & Gibbs Free Energy' has been added to your course.",
-    timestamp: subHours(new Date(), 12),
-    read: true,
-    action: { label: "View Material", href: "#" },
-  },
-  {
-    id: "5",
-    type: "achievement",
-    title: "Quiz Score: Perfect!",
-    message: "You scored 100% on 'Electromagnetic Waves Quiz'. You're on fire!",
-    timestamp: subDays(new Date(), 1),
-    read: true,
-    action: { label: "Review Quiz", href: "#" },
-  },
-  {
-    id: "6",
-    type: "reminder",
-    title: "Weekly Goal Progress",
-    message: "You've completed 4 out of 5 weekly study sessions. One more to hit your target!",
-    timestamp: subDays(new Date(), 1),
-    read: false,
-  },
-  {
-    id: "7",
-    type: "info",
-    title: "Community Update",
-    message: "3 classmates have commented on your study group discussion about 'Wave Functions'.",
-    timestamp: subDays(new Date(), 2),
-    read: true,
-  },
-  {
-    id: "8",
-    type: "warning",
-    title: "Streak at Risk",
-    message: "Today's the last day to maintain your 12-day streak. Even 10 minutes counts!",
-    timestamp: subMinutes(new Date(), 30),
-    read: false,
-    action: { label: "Quick Study", href: "#" },
-  },
-];
-
-// --- Helpers ---
+interface GroupedNotifications {
+  label: string;
+  items: NotificationData[];
+}
 
 const TYPE_CONFIG: Record<
   NotificationType,
   { icon: typeof Star; bgColor: string; textColor: string; dotColor: string; label: string }
 > = {
   achievement: {
-    icon: Star,
+    icon: Trophy,
     bgColor: "bg-amber-100 dark:bg-amber-950/40",
     textColor: "text-amber-600 dark:text-amber-400",
     dotColor: "bg-amber-500",
     label: "Achievements",
   },
   reminder: {
-    icon: Bell,
+    icon: BookOpen,
     bgColor: "bg-teal-100 dark:bg-teal-950/40",
     textColor: "text-teal-600 dark:text-teal-400",
     dotColor: "bg-teal-500",
     label: "Reminders",
   },
   warning: {
-    icon: AlertTriangle,
+    icon: ShieldAlert,
     bgColor: "bg-red-100 dark:bg-red-950/40",
     textColor: "text-red-600 dark:text-red-400",
     dotColor: "bg-red-500",
@@ -145,192 +80,318 @@ const TYPE_CONFIG: Record<
   },
 };
 
-function timeAgo(date: Date): string {
-  return formatDistanceToNow(date, { addSuffix: true });
+function formatTime(createdAt: string): string {
+  const date = new Date(createdAt);
+  if (isToday(date)) return formatDistanceToNow(date, { addSuffix: true });
+  if (isYesterday(date)) return "Yesterday";
+  return format(date, "MMM d");
 }
 
-// --- Sub-components ---
+function groupByDate(notifications: NotificationData[]): GroupedNotifications[] {
+  const groups: { label: string; items: NotificationData[] }[] = [];
+  const now = new Date();
+  const today: NotificationData[] = [];
+  const yesterday: NotificationData[] = [];
+  const thisWeek: NotificationData[] = [];
+  const earlier: NotificationData[] = [];
+
+  for (const n of notifications) {
+    const d = new Date(n.createdAt);
+    if (isToday(d)) today.push(n);
+    else if (isYesterday(d)) yesterday.push(n);
+    else if (now.getTime() - d.getTime() < 7 * 86400000) thisWeek.push(n);
+    else earlier.push(n);
+  }
+
+  if (today.length) groups.push({ label: "Today", items: today });
+  if (yesterday.length) groups.push({ label: "Yesterday", items: yesterday });
+  if (thisWeek.length) groups.push({ label: "This Week", items: thisWeek });
+  if (earlier.length) groups.push({ label: "Earlier", items: earlier });
+
+  return groups;
+}
 
 function NotificationCard({
   notification,
   onDismiss,
+  onMarkRead,
 }: {
-  notification: Notification;
+  notification: NotificationData;
   onDismiss: (id: string) => void;
+  onMarkRead: (id: string) => void;
 }) {
-  const config = TYPE_CONFIG[notification.type];
+  const type = (notification.type in TYPE_CONFIG ? notification.type : "info") as NotificationType;
+  const config = TYPE_CONFIG[type];
   const Icon = config.icon;
 
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: 60, transition: { duration: 0.2 } }}
-      transition={{ duration: 0.25 }}
+      exit={{ opacity: 0, x: 80, transition: { duration: 0.2 } }}
+      transition={{ duration: 0.2 }}
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+      drag="x"
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={{ left: 0.3, right: 0 }}
+      onDragEnd={(_, info) => {
+        if (info.offset.x < -80) onDismiss(notification.id);
+      }}
     >
-      <Card
-        className={`relative transition-all hover:shadow-md ${
-          !notification.read ? "border-l-2 border-l-amber-500" : ""
-        }`}
+      <div
+        className={`group relative flex items-start gap-3 rounded-xl border p-3.5 transition-all ${
+          notification.isRead
+            ? "bg-card border-border/50"
+            : "bg-card border-l-[3px] shadow-sm dark:shadow-emerald-950/10"
+        } hover:border-border hover:shadow-md cursor-pointer`}
+        onClick={() => {
+          if (!notification.isRead) onMarkRead(notification.id);
+        }}
       >
-        <CardContent className="flex gap-3 py-4 px-4">
-          {/* Icon */}
-          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${config.bgColor}`}>
-            <Icon className={`h-4 w-4 ${config.textColor}`} />
-          </div>
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${notification.isProactive ? 'bg-gradient-to-br from-amber-100 to-purple-100 dark:from-amber-950/40 dark:to-purple-950/40' : config.bgColor}`}>
+          {notification.isProactive ? <Sparkles className="h-5 w-5 text-amber-600 dark:text-amber-400" /> : <Icon className={`h-5 w-5 ${config.textColor}`} />}
+        </div>
 
-          {/* Content */}
-          <div className="flex-1 min-w-0 space-y-1">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-semibold leading-tight">{notification.title}</p>
-              <div className="flex items-center gap-1.5 shrink-0">
-                {!notification.read && (
-                  <div className="h-2 w-2 rounded-full bg-amber-500" />
-                )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                  onClick={() => onDismiss(notification.id)}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">{notification.message}</p>
-            <div className="flex items-center justify-between gap-2 pt-1">
-              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                <Clock className="h-2.5 w-2.5" />
-                {timeAgo(notification.timestamp)}
-              </span>
-              {notification.action && (
-                <Button variant="link" size="sm" className="h-auto p-0 text-xs">
-                  {notification.action.label}
-                </Button>
+        <div className="flex-1 min-w-0 space-y-1">
+          <div className="flex items-start justify-between gap-2">
+            <p className={`text-sm leading-tight ${notification.isRead ? "font-medium text-muted-foreground" : "font-semibold"}`}>
+              {notification.title}
+            </p>
+            <div className="flex items-center gap-1 shrink-0">
+              {!notification.isRead && (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: config.dotColor.replace("bg-", "") }}
+                />
               )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground/40 hover:text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => { e.stopPropagation(); onDismiss(notification.id); }}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
+          <p className={`text-xs leading-relaxed ${notification.isRead ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
+            {notification.message}
+          </p>
+          <div className="flex items-center justify-between gap-2 pt-0.5">
+            <span className="text-[11px] text-muted-foreground/50 flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {formatTime(notification.createdAt)}
+            </span>
+            {notification.actionUrl && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-auto px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700"
+                onClick={(e) => { e.stopPropagation(); }}
+                asChild
+              >
+                <a href={notification.actionUrl}>View</a>
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
     </motion.div>
   );
 }
 
 function EmptyState({ filter }: { filter: string }) {
+  const configs: Record<string, { icon: typeof Bell; title: string; desc: string }> = {
+    all: { icon: Inbox, title: "No notifications yet", desc: "When you get notifications, they'll show up here." },
+    unread: { icon: Bell, title: "All caught up!", desc: "You've read every notification. Great focus!" },
+    achievements: { icon: PartyPopper, title: "No achievements yet", desc: "Complete quizzes and earn badges to see achievements here." },
+    reminders: { icon: BookOpen, title: "No reminders", desc: "Study reminders will appear here when you have pending materials." },
+    warnings: { icon: ShieldAlert, title: "All clear!", desc: "No warnings — you're doing great." },
+    proactive: { icon: Sparkles, title: "No AI insights yet", desc: "AI-powered learning insights will appear here as you study." },
+    info: { icon: Info, title: "No updates", desc: "General updates and info will show up here." },
+  };
+
+  const c = configs[filter] || configs.all;
+  const Icon = c.icon;
+
   return (
-    <div className="flex flex-col items-center justify-center py-12 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-        <Bell className="h-6 w-6 text-muted-foreground" />
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex flex-col items-center justify-center py-16 text-center"
+    >
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/50 mb-4">
+        <Icon className="h-7 w-7 text-muted-foreground/60" />
       </div>
-      <p className="mt-3 text-sm font-medium">No notifications</p>
-      <p className="mt-1 text-xs text-muted-foreground max-w-[240px]">
-        {filter === "unread"
-          ? "You're all caught up! No unread notifications to show."
-          : `No ${filter} notifications at the moment.`}
-      </p>
-    </div>
+      <p className="text-sm font-semibold text-foreground/80">{c.title}</p>
+      <p className="mt-1 text-xs text-muted-foreground/60 max-w-[260px]">{c.desc}</p>
+    </motion.div>
   );
 }
 
-// --- Main Component ---
-
 export default function Notifications() {
-  const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
+  const authUser = useAuthStore((s) => s.user);
+  const token = useAuthStore((s) => s.token);
+  const { notifications, unreadCounts, isLoading, fetchNotifications, markAsRead, markAllAsRead, dismissNotification } = useNotificationStore();
   const [activeTab, setActiveTab] = useState("all");
 
-  const unreadCount = useMemo(
-    () => notifications.filter((n) => !n.read).length,
-    [notifications]
-  );
+  useBrowserNotification();
+
+  useEffect(() => {
+    if (authUser?.id && token) {
+      fetchNotifications(token, authUser.id);
+    }
+  }, [authUser?.id, token, fetchNotifications]);
+
+  const unreadCount = unreadCounts.notifications ?? notifications.filter((n) => !n.isRead).length;
 
   const filteredNotifications = useMemo(() => {
     switch (activeTab) {
-      case "unread":
-        return notifications.filter((n) => !n.read);
-      case "achievements":
-        return notifications.filter((n) => n.type === "achievement");
-      case "reminders":
-        return notifications.filter((n) => n.type === "reminder");
-      case "warnings":
-        return notifications.filter((n) => n.type === "warning");
-      default:
-        return notifications;
+      case "unread": return notifications.filter((n) => !n.isRead);
+      case "achievements": return notifications.filter((n) => n.type === "achievement");
+      case "reminders": return notifications.filter((n) => n.type === "reminder");
+      case "warnings": return notifications.filter((n) => n.type === "warning");
+      case "proactive": return notifications.filter((n) => n.isProactive);
+      default: return notifications;
     }
   }, [notifications, activeTab]);
 
-  function dismissNotification(id: string) {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  }
+  const grouped = useMemo(() => groupByDate(filteredNotifications), [filteredNotifications]);
 
-  function markAllRead() {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  }
+  const handleDismiss = useCallback((id: string) => {
+    if (authUser?.id) dismissNotification(id, authUser.id);
+  }, [authUser?.id, dismissNotification]);
+
+  const handleMarkRead = useCallback((id: string) => {
+    if (authUser?.id) markAsRead(id, authUser.id);
+  }, [authUser?.id, markAsRead]);
+
+  const handleMarkAllRead = useCallback(() => {
+    if (authUser?.id) markAllAsRead(authUser.id);
+  }, [authUser?.id, markAllAsRead]);
+
+  const handleClearAll = useCallback(() => {
+    if (authUser?.id) {
+      notifications.forEach((n) => dismissNotification(n.id, authUser.id));
+    }
+  }, [authUser?.id, notifications, dismissNotification]);
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="border-border/60 shadow-sm">
+      <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CardTitle>Notifications</CardTitle>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-950/40">
+              <Bell className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Notifications</CardTitle>
+              <p className="text-xs text-muted-foreground/70 mt-0.5">
+                Stay updated on your learning journey
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
             {unreadCount > 0 && (
-              <Badge className="bg-amber-500 text-white border-amber-500 hover:bg-amber-500">
-                {unreadCount}
-              </Badge>
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleMarkAllRead}
+                  className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1.5"
+                >
+                  <CheckCheck className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Mark all read</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearAll}
+                  className="h-8 px-2.5 text-xs text-muted-foreground hover:text-red-500 gap-1.5"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Clear all</span>
+                </Button>
+              </>
             )}
           </div>
-          {unreadCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={markAllRead}
-              className="text-muted-foreground hover:text-foreground gap-1.5"
-            >
-              <CheckCheck className="h-3.5 w-3.5" />
-              Mark all as read
-            </Button>
-          )}
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-0">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full flex">
-            <TabsTrigger value="all" className="text-xs">
-              All ({notifications.length})
-            </TabsTrigger>
-            <TabsTrigger value="unread" className="text-xs">
-              Unread ({unreadCount})
-            </TabsTrigger>
-            <TabsTrigger value="achievements" className="text-xs hidden sm:flex">
-              Achievements
-            </TabsTrigger>
-            <TabsTrigger value="reminders" className="text-xs hidden sm:flex">
-              Reminders
-            </TabsTrigger>
-            <TabsTrigger value="warnings" className="text-xs hidden sm:flex">
-              Warnings
-            </TabsTrigger>
-          </TabsList>
+          <div className="px-6 pt-0 pb-2">
+            <TabsList className="w-full h-9 bg-muted/50 p-0.5">
+                <TabsTrigger value="all" className="text-xs h-7 data-[state=active]:shadow-sm">
+                  All {notifications.length > 0 && `(${notifications.length})`}
+                </TabsTrigger>
+                {unreadCount > 0 && (
+                  <TabsTrigger value="unread" className="text-xs h-7 data-[state=active]:shadow-sm">
+                    Unread ({unreadCount})
+                  </TabsTrigger>
+                )}
+                <TabsTrigger value="achievements" className="text-xs h-7 data-[state=active]:shadow-sm">
+                  🏆 Achievements
+                </TabsTrigger>
+                <TabsTrigger value="reminders" className="text-xs h-7 data-[state=active]:shadow-sm">
+                  📚 Reminders
+                </TabsTrigger>
+                <TabsTrigger value="warnings" className="text-xs h-7 data-[state=active]:shadow-sm">
+                  ⚠️ Warnings
+                </TabsTrigger>
+                <TabsTrigger value="proactive" className="text-xs h-7 data-[state=active]:shadow-sm">
+                  ✨ AI Insights
+                </TabsTrigger>
+              </TabsList>
+          </div>
 
-          <TabsContent value={activeTab} className="mt-4">
-            <ScrollArea className="max-h-[520px]">
-              <div className="space-y-2 pr-3">
-                <AnimatePresence mode="popLayout">
-                  {filteredNotifications.length > 0 ? (
-                    filteredNotifications.map((notification) => (
-                      <NotificationCard
-                        key={notification.id}
-                        notification={notification}
-                        onDismiss={dismissNotification}
-                      />
-                    ))
-                  ) : (
-                    <EmptyState filter={activeTab} />
-                  )}
-                </AnimatePresence>
-              </div>
-            </ScrollArea>
-          </TabsContent>
+          {["all", "unread", "achievements", "reminders", "warnings", "proactive"].map((tab) => (
+            <TabsContent key={tab} value={tab} className="mt-0 px-6 pb-6">
+              {isLoading ? (
+                <div className="space-y-2 pt-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="animate-pulse flex gap-3 rounded-xl border border-border/50 p-3.5">
+                      <div className="h-10 w-10 rounded-xl bg-muted shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 w-3/4 rounded bg-muted" />
+                        <div className="h-3 w-full rounded bg-muted/70" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : filteredNotifications.length === 0 ? (
+                <EmptyState filter={tab} />
+              ) : (
+                <ScrollArea className="max-h-[560px] -mr-2 pr-2">
+                  <AnimatePresence mode="popLayout">
+                    {grouped.map((group) => (
+                      <div key={group.label} className="mt-3 first:mt-0">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/40">
+                            {group.label}
+                          </span>
+                          <div className="flex-1 h-px bg-border/30" />
+                        </div>
+                        <div className="space-y-2">
+                          {group.items.map((notification) => (
+                            <NotificationCard
+                              key={notification.id}
+                              notification={notification}
+                              onDismiss={handleDismiss}
+                              onMarkRead={handleMarkRead}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </AnimatePresence>
+                </ScrollArea>
+              )}
+            </TabsContent>
+          ))}
         </Tabs>
       </CardContent>
     </Card>

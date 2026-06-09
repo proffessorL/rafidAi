@@ -1,9 +1,11 @@
 import { db } from '@/lib/db'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const studentId = 'stu_001'
+    const { searchParams } = new URL(request.url)
+    const studentId = searchParams.get('student_id')
+    if (!studentId) return NextResponse.json({ error: 'student_id required' }, { status: 400 })
 
     const notifications = await db.notification.findMany({
       where: { studentId },
@@ -19,14 +21,44 @@ export async function GET() {
   }
 }
 
+export async function POST(request: Request) {
+  try {
+    const { student_id, title, message, type, action_url } = await request.json()
+
+    if (!student_id || !title || !message || !type) {
+      return NextResponse.json({ error: 'student_id, title, message, and type are required' }, { status: 400 })
+    }
+
+    const validTypes = ['info', 'warning', 'achievement', 'reminder']
+    if (!validTypes.includes(type)) {
+      return NextResponse.json({ error: `type must be one of: ${validTypes.join(', ')}` }, { status: 400 })
+    }
+
+    const notification = await db.notification.create({
+      data: {
+        studentId: student_id,
+        title,
+        message,
+        type,
+        actionUrl: action_url || null,
+      },
+    })
+
+    return NextResponse.json({ notification }, { status: 201 })
+  } catch (error) {
+    console.error('Notification create error:', error)
+    return NextResponse.json({ error: 'Failed to create notification' }, { status: 500 })
+  }
+}
+
 export async function PUT(request: Request) {
   try {
-    const { notification_ids, mark_all } = await request.json()
-    const studentId = 'stu_001'
+    const { notification_ids, mark_all, student_id } = await request.json()
+    if (!student_id) return NextResponse.json({ error: 'student_id required' }, { status: 400 })
 
     if (mark_all) {
       await db.notification.updateMany({
-        where: { studentId, isRead: false },
+        where: { studentId: student_id, isRead: false },
         data: { isRead: true },
       })
       return NextResponse.json({ success: true })

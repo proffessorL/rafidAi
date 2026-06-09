@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { notifyEngagementDrop } from '@/lib/services/notification-service'
 
 const STUDY_PAGE_IDS = [
   'quiz', 'tutor', 'wellbeing', 'notes', 'gamification',
@@ -53,6 +54,9 @@ export async function POST(request: Request) {
     const weeklyActiveHours = Math.round((totalWeeklySeconds / 3600) * 10) / 10
 
     // Update engagement score
+    const previousScore = await db.engagementScore.findUnique({ where: { studentId: sid } })
+    const previousOverall = previousScore?.overallScore ?? 50
+
     await db.engagementScore.upsert({
       where: { studentId: sid },
       create: {
@@ -73,7 +77,12 @@ export async function POST(request: Request) {
       },
     })
 
-    return NextResponse.json({ success: true, engagementScore: Math.round(engagementScore) })
+    const roundedScore = Math.round(engagementScore)
+    if (roundedScore < 40 && previousOverall >= 40) {
+      notifyEngagementDrop({ studentId: sid, engagementScore: roundedScore }).catch(() => {})
+    }
+
+    return NextResponse.json({ success: true, engagementScore: roundedScore })
   } catch (error) {
     console.error('Telemetry error:', error)
     return NextResponse.json({ error: 'Failed to record telemetry' }, { status: 500 })

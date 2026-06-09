@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import QuizGenerator from './QuizGenerator'
 import TeacherQuizTaker from './TeacherQuizTaker'
+import EnhanceKnowledge from './EnhanceKnowledge'
 import { cn } from '@/lib/utils'
-import { Brain, GraduationCap } from 'lucide-react'
+import { Brain, GraduationCap, TrendingUp } from 'lucide-react'
 
 export default function QuizPage() {
   const [tab, setTab] = useState('ai')
@@ -50,9 +51,29 @@ export default function QuizPage() {
             Teacher Quizzes
           </span>
         </button>
+        <button
+          onClick={() => setTab('enhance')}
+          className={cn(
+            'relative z-10 flex items-center justify-center gap-1.5 px-5 py-1.5 rounded-lg text-xs font-medium transition-colors duration-200',
+            tab === 'enhance' ? 'text-emerald-600 dark:text-white' : 'text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+          )}
+        >
+          {tab === 'enhance' && (
+            <motion.div
+              layoutId="activeQuizTabPill"
+               className="absolute inset-0 bg-white dark:bg-card/30 border border-slate-200/80 dark:border-border rounded-lg shadow-md shadow-slate-200/50 dark:shadow-black/40 z-0 backdrop-blur-md"
+              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+            />
+          )}
+          <span className="relative z-10 flex items-center gap-1.5">
+            <TrendingUp className="size-4" />
+            Enhance Your Knowledge
+          </span>
+        </button>
       </div>
       {tab === 'ai' && <QuizGenerator />}
       {tab === 'teacher' && <TeacherQuizTaker />}
+      {tab === 'enhance' && <EnhanceKnowledge />}
     </div>
   )
 }

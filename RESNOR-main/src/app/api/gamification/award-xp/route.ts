@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { notifyLevelUp } from '@/lib/services/notification-service'
 
 function xpForLevel(level: number) {
   return 500 * level * (level - 1) / 2
@@ -38,6 +39,10 @@ export async function POST(request: Request) {
 
     const prevLevelXp = xpForLevel(newLevel)
     const nextLevelXp = xpForLevel(newLevel + 1)
+
+    if (newLevel > oldLevel) {
+      notifyLevelUp({ studentId: student_id, newLevel }).catch(() => {})
+    }
 
     return NextResponse.json({
       xp: progress.xp,
