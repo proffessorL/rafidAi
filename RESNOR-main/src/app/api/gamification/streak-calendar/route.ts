@@ -79,7 +79,7 @@ export async function GET(request: Request) {
     const allDates: string[] = []
     const d = new Date(streakStart)
     const todayKey = tzDateKey(now, tzMs)
-    while (tzDateKey(d, 0) <= todayKey) {
+    while (tzDateKey(d, tzMs) <= todayKey) {
       allDates.push(tzDateKey(d, tzMs))
       d.setDate(d.getDate() + 1)
     }
