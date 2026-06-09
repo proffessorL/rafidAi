@@ -12,9 +12,11 @@ export async function GET(request: Request) {
     const studentId = searchParams.get('student_id')
     if (!studentId) return NextResponse.json({ error: 'student_id required' }, { status: 400 })
 
+    const tzOffset = parseInt(searchParams.get('tz') || '0')
+    const tzMs = tzOffset * 60000
     const now = new Date()
-    const todayStart = new Date(now)
-    todayStart.setHours(0, 0, 0, 0)
+    const userNow = new Date(now.getTime() + tzMs)
+    const todayStart = new Date(Date.UTC(userNow.getUTCFullYear(), userNow.getUTCMonth(), userNow.getUTCDate()) - tzMs)
 
     const result = await db.telemetryRecord.aggregate({
       where: {

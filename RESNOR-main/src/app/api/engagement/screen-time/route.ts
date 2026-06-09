@@ -35,8 +35,9 @@ export async function GET(request: Request) {
 
     const tzOffset = parseInt(searchParams.get('tz') || '0')
     const now = new Date()
-    const userNow = new Date(now.getTime() + tzOffset * 1000)
-    const todayStart = new Date(Date.UTC(userNow.getUTCFullYear(), userNow.getUTCMonth(), userNow.getUTCDate()) - tzOffset * 1000)
+    const tzMs = tzOffset * 60000
+    const userNow = new Date(now.getTime() + tzMs)
+    const todayStart = new Date(Date.UTC(userNow.getUTCFullYear(), userNow.getUTCMonth(), userNow.getUTCDate()) - tzMs)
     const sevenDaysAgo = new Date(todayStart.getTime() - 6 * 86400000)
 
     const records = await db.telemetryRecord.findMany({
@@ -81,7 +82,7 @@ export async function GET(request: Request) {
     const dailyTotals: { date: string; label: string; total: number; active: number; passive: number }[] = []
     for (let i = 6; i >= 0; i--) {
       const userDay = new Date(userNow.getTime() - i * 86400000)
-      const dayStart = new Date(Date.UTC(userDay.getUTCFullYear(), userDay.getUTCMonth(), userDay.getUTCDate()) - tzOffset * 1000)
+      const dayStart = new Date(Date.UTC(userDay.getUTCFullYear(), userDay.getUTCMonth(), userDay.getUTCDate()) - tzMs)
       const dayEnd = new Date(dayStart.getTime() + 86400000 - 1)
       const dayRecords = records.filter((r) => r.createdAt >= dayStart && r.createdAt <= dayEnd)
       const dayActive = dayRecords.filter((r) => classifyRecord(r.interactionCount, r.tabFocused) === 'active')
