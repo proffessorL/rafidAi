@@ -33,9 +33,10 @@ export async function GET(request: Request) {
     const studentId = searchParams.get('student_id')
     if (!studentId) return NextResponse.json({ error: 'student_id is required' }, { status: 400 })
 
+    const tzOffset = parseInt(searchParams.get('tz') || '0')
     const now = new Date()
-    const todayStart = new Date(now)
-    todayStart.setHours(0, 0, 0, 0)
+    const userNow = new Date(now.getTime() + tzOffset * 1000)
+    const todayStart = new Date(Date.UTC(userNow.getUTCFullYear(), userNow.getUTCMonth(), userNow.getUTCDate()) - tzOffset * 1000)
     const sevenDaysAgo = new Date(todayStart.getTime() - 6 * 86400000)
 
     const records = await db.telemetryRecord.findMany({
@@ -79,12 +80,9 @@ export async function GET(request: Request) {
     // ── 7-day daily totals ──
     const dailyTotals: { date: string; label: string; total: number; active: number; passive: number }[] = []
     for (let i = 6; i >= 0; i--) {
-      const d = new Date(now)
-      d.setDate(d.getDate() - i)
-      const dayStart = new Date(d)
-      dayStart.setHours(0, 0, 0, 0)
-      const dayEnd = new Date(d)
-      dayEnd.setHours(23, 59, 59, 999)
+      const userDay = new Date(userNow.getTime() - i * 86400000)
+      const dayStart = new Date(Date.UTC(userDay.getUTCFullYear(), userDay.getUTCMonth(), userDay.getUTCDate()) - tzOffset * 1000)
+      const dayEnd = new Date(dayStart.getTime() + 86400000 - 1)
       const dayRecords = records.filter((r) => r.createdAt >= dayStart && r.createdAt <= dayEnd)
       const dayActive = dayRecords.filter((r) => classifyRecord(r.interactionCount, r.tabFocused) === 'active')
         .reduce((s, r) => s + r.activeSeconds, 0)
@@ -92,7 +90,7 @@ export async function GET(request: Request) {
         .reduce((s, r) => s + r.activeSeconds, 0)
       dailyTotals.push({
         date: dayStart.toISOString().split('T')[0],
-        label: dayStart.toLocaleDateString('en-US', { weekday: 'short' }),
+        label: new Date(userDay).toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' }),
         total: dayActive + dayPassive,
         active: dayActive,
         passive: dayPassive,
