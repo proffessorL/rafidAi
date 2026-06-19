@@ -120,6 +120,7 @@ model Material {
   topicId       String
   contentType   String   @default("document") // document, video, slide
   contentUrl    String?
+  content       String?
   estimatedTime Int      @default(30) // minutes
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -833,4 +834,14 @@ model EnhanceKnowledgeQuestion {
   answeredCorrectly Boolean?
 
   session EnhanceKnowledgeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model DocumentChunk {
+  id        String   @id @default(cuid())
+  source    String
+  text      String
+  metadata  Json     @default("{}")
+  embedding Unsupported("vector(384)")?
+
+  @@index([source])
 }

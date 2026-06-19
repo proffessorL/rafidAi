@@ -1,18 +1,8 @@
 import { embeddingService } from '../embeddings/embedding-service'
 import type { DocumentChunk } from '../providers/types'
-import * as fs from 'fs'
-import * as path from 'path'
-
-const PERSIST_PATH = path.join(process.cwd(), '.vectordb', 'chunks.json')
+import { db } from '@/lib/db'
 
 export class VectorStore {
-  private chunks: DocumentChunk[] = []
-  private loaded = false
-
-  constructor() {
-    this.load()
-  }
-
   async addChunks(newChunks: DocumentChunk[]): Promise<void> {
     const toEmbed = newChunks.filter((c) => !c.embedding)
     if (toEmbed.length > 0) {
@@ -23,56 +13,74 @@ export class VectorStore {
       }
     }
 
-    this.chunks.push(...newChunks)
-    this.persist()
+    for (const chunk of newChunks) {
+      if (chunk.embedding) {
+        await db.$queryRawUnsafe(
+          `INSERT INTO "DocumentChunk" (id, source, text, metadata, embedding)
+           VALUES ($1, $2, $3, $4::jsonb, $5::vector)
+           ON CONFLICT (id) DO NOTHING`,
+          chunk.id,
+          chunk.metadata.source,
+          chunk.text,
+          JSON.stringify(chunk.metadata),
+          `[${chunk.embedding.join(',')}]`
+        )
+      } else {
+        await db.documentChunk.create({
+          data: {
+            id: chunk.id,
+            source: chunk.metadata.source,
+            text: chunk.text,
+            metadata: chunk.metadata as object,
+          },
+        })
+      }
+    }
   }
 
   async search(query: string, topK: number = 5): Promise<DocumentChunk[]> {
     const queryVec = await embeddingService.embed(query)
-    const scored = this.chunks
-      .filter((c) => c.embedding && c.embedding.length > 0)
-      .map((chunk) => ({
-        chunk,
-        score: embeddingService.cosineSimilarity(queryVec, chunk.embedding!),
-      }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, topK)
 
-    return scored.map((s) => s.chunk)
+    const rows = await db.$queryRawUnsafe<
+      Array<{
+        id: string
+        source: string
+        text: string
+        metadata: unknown
+      }>
+    >(
+      `SELECT id, source, text, metadata
+       FROM "DocumentChunk"
+       WHERE embedding IS NOT NULL
+       ORDER BY embedding <-> $1::vector
+       LIMIT $2`,
+      `[${queryVec.join(',')}]`,
+      topK
+    )
+
+    return rows.map((row) => ({
+      id: row.id,
+      text: row.text,
+      metadata:
+        typeof row.metadata === 'string'
+          ? JSON.parse(row.metadata)
+          : (row.metadata as DocumentChunk['metadata']),
+    }))
   }
 
   async deleteSource(source: string): Promise<void> {
-    this.chunks = this.chunks.filter((c) => c.metadata.source !== source)
-    this.persist()
+    await db.documentChunk.deleteMany({ where: { source } })
   }
 
-  getStats(): { totalChunks: number; sources: string[] } {
-    const sources = [...new Set(this.chunks.map((c) => c.metadata.source))]
-    return { totalChunks: this.chunks.length, sources }
-  }
-
-  private persist(): void {
-    try {
-      const dir = path.dirname(PERSIST_PATH)
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true })
-      }
-      fs.writeFileSync(PERSIST_PATH, JSON.stringify(this.chunks, null, 2), 'utf-8')
-    } catch {
-    }
-  }
-
-  private load(): void {
-    if (this.loaded) return
-    try {
-      if (fs.existsSync(PERSIST_PATH)) {
-        const raw = fs.readFileSync(PERSIST_PATH, 'utf-8')
-        this.chunks = JSON.parse(raw)
-      }
-    } catch {
-      this.chunks = []
-    }
-    this.loaded = true
+  async getStats(): Promise<{ totalChunks: number; sources: string[] }> {
+    const [totalChunks, sourceRows] = await Promise.all([
+      db.documentChunk.count(),
+      db.documentChunk.findMany({
+        select: { source: true },
+        distinct: ['source'],
+      }),
+    ])
+    return { totalChunks, sources: sourceRows.map((s) => s.source) }
   }
 }
 

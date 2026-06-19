@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { vectorStore } from '@/ai/vector-store/vector-store'
 
 export async function GET() {
-  const stats = vectorStore.getStats()
+  const stats = await vectorStore.getStats()
   return NextResponse.json({
     documents: stats.sources.map((source) => ({
       id: source,

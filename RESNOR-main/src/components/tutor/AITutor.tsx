@@ -127,12 +127,42 @@ export default function AITutor() {
   const [sidebarTab, setSidebarTab] = useState<'chats' | 'topics'>('chats')
   const [topicSearch, setTopicSearch] = useState('')
   const [errorRetry, setErrorRetry] = useState(false)
+  const [multiAgent, setMultiAgent] = useState(false)
   const [dynamicTopics, setDynamicTopics] = useState<TopicCard[]>([])
   const [topicsLoading, setTopicsLoading] = useState(true)
   const [expandedCourses, setExpandedCourses] = useState<Set<string>>(new Set())
 
+  const [displayedContents, setDisplayedContents] = useState<Record<string, string>>({})
+  const typewriterIntervals = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map())
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    return () => {
+      typewriterIntervals.current.forEach(id => clearInterval(id))
+      typewriterIntervals.current.clear()
+    }
+  }, [])
+
+  const startTypewriter = useCallback((messageId: string, fullContent: string) => {
+    if (!fullContent) return
+    const speed = 15
+    const charsPerTick = 5
+    let currentIndex = 0
+    setDisplayedContents(prev => ({ ...prev, [messageId]: '' }))
+    const interval = setInterval(() => {
+      currentIndex += charsPerTick
+      if (currentIndex >= fullContent.length) {
+        setDisplayedContents(prev => ({ ...prev, [messageId]: fullContent }))
+        clearInterval(interval)
+        typewriterIntervals.current.delete(messageId)
+      } else {
+        setDisplayedContents(prev => ({ ...prev, [messageId]: fullContent.slice(0, currentIndex) }))
+      }
+    }, speed)
+    typewriterIntervals.current.set(messageId, interval)
+  }, [])
 
   useEffect(() => {
     if (!authUser?.id) {
@@ -199,8 +229,12 @@ export default function AITutor() {
           topic: activeTopicCard?.name || activeTopic,
         }),
       })
+      if (!res.ok) {
+        let errMsg = `Server error (${res.status})`
+        try { const d = await res.json(); errMsg = d.error || errMsg } catch { errMsg = res.statusText || errMsg }
+        throw new Error(errMsg)
+      }
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
       const newConv: Conversation = {
         id: data.conversation.id,
         title: 'New Chat',
@@ -319,8 +353,12 @@ export default function AITutor() {
             topic: activeTopicCard?.name || activeTopic,
           }),
         })
+        if (!res.ok) {
+          let errMsg = `Server error (${res.status})`
+          try { const d = await res.json(); errMsg = d.error || errMsg } catch { errMsg = res.statusText || errMsg }
+          throw new Error(errMsg)
+        }
         const data = await res.json()
-        if (!res.ok) throw new Error(data.error)
         convId = data.conversation.id
         const newConv: Conversation = {
           id: convId!,
@@ -385,14 +423,17 @@ export default function AITutor() {
           topic: activeTopicCard?.name || null,
           sessionId: convId,
           studentId: authUser.id,
+          multiAgent,
         }),
       })
 
-      const data = await res.json()
-
       if (!res.ok) {
-        throw new Error(data.error || 'Request failed')
+        let errMsg = `Server error (${res.status})`
+        try { const d = await res.json(); errMsg = d.error || errMsg } catch { errMsg = res.statusText || errMsg }
+        throw new Error(errMsg)
       }
+
+      const data = await res.json()
 
       const aiMsg: Message = {
         id: crypto.randomUUID(),
@@ -411,6 +452,8 @@ export default function AITutor() {
         }
         return updated
       }))
+
+      startTypewriter(aiMsg.id, aiMsg.content)
     } catch (err) {
       const serverMsg = err instanceof Error ? err.message : 'Request failed'
       const errorMsg: Message = {
@@ -1011,6 +1054,31 @@ export default function AITutor() {
               </Badge>
             )}
 
+            <button
+              onClick={() => setMultiAgent(prev => !prev)}
+              className={cn(
+                'shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium transition-all',
+                multiAgent
+                  ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20'
+                  : 'text-muted-foreground/50 hover:text-muted-foreground/80 border border-transparent'
+              )}
+              title={multiAgent ? 'Expert Panel mode active' : 'Enable Expert Panel (multi-AI debate)'}
+            >
+              {multiAgent ? (
+                <span className="flex items-center gap-1">
+                  <span className="size-1.5 rounded-full bg-purple-500 animate-pulse" />
+                  <span className="hidden sm:inline">Expert</span>
+                  <span className="hidden md:inline">Panel</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <Bot className="size-3" />
+                  <span className="hidden sm:inline">Single</span>
+                  <span className="hidden md:inline">AI</span>
+                </span>
+              )}
+            </button>
+
             <div className={cn(
               'shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium',
               isTyping ? 'bg-amber-500/8 text-amber-600 dark:text-amber-400' : 'bg-emerald-500/8 text-emerald-600 dark:text-emerald-400'
@@ -1022,7 +1090,7 @@ export default function AITutor() {
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto w-full scroll-smooth scrollbar-thin">
-          <div className="w-full max-w-3xl mx-auto flex flex-col gap-4 px-4 py-6">
+          <div className="w-full max-w-4xl mx-auto flex flex-col gap-5 px-4 py-6">
             {messages.length === 0 && !isTyping && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -1036,13 +1104,13 @@ export default function AITutor() {
                 >
                   <Bot className="size-7 sm:size-8" />
                 </motion.div>
-                <h2 className="text-xl sm:text-2xl font-bold mb-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 dark:from-emerald-400 dark:to-teal-400 bg-clip-text text-transparent">How can I help you today?</h2>
-                <p className="text-sm text-muted-foreground/60 mb-6 sm:mb-7 text-center max-w-md leading-relaxed">
-                  Choose a learning mode below or type your question
+                <h2 className="text-2xl sm:text-3xl font-bold mb-2 bg-gradient-to-r from-emerald-600 to-teal-600 dark:from-emerald-400 dark:to-teal-400 bg-clip-text text-transparent">What do you want to learn?</h2>
+                <p className="text-base text-muted-foreground/60 mb-7 sm:mb-8 text-center max-w-lg leading-relaxed">
+                  Pick a learning mode or type your question
                 </p>
 
-<div className="w-full max-w-xl mb-5 sm:mb-6">
-  <div className="grid grid-cols-4 gap-2">
+                <div className="w-full max-w-2xl mb-6 sm:mb-7">
+                  <div className="grid grid-cols-4 gap-2.5">
                     {MODES.map((mode) => {
                       const Icon = mode.icon
                       return (
@@ -1050,14 +1118,14 @@ export default function AITutor() {
                           key={mode.key}
                           onClick={() => handleModeChange(mode.key)}
                           className={cn(
-                            'flex flex-col items-center gap-1.5 rounded-xl border border-border/60 p-2.5 sm:p-3.5 transition-all bg-card/50 hover:bg-card hover:border-border hover:shadow-sm',
+                            'flex flex-col items-center gap-2 rounded-xl border border-border/60 p-3 sm:p-4 transition-all bg-card/50 hover:bg-card hover:border-border hover:shadow-sm',
                             activeMode === mode.key && 'border-emerald-500/40 bg-emerald-500/5 ring-1 ring-emerald-500/20'
                           )}
                         >
-                          <div className={cn('flex size-7 sm:size-8 items-center justify-center rounded-lg transition-colors', activeMode === mode.key ? mode.bgColor : 'bg-muted/60')}>
-                            <Icon className={cn('size-3.5 sm:size-4', mode.color)} />
+                          <div className={cn('flex size-8 sm:size-9 items-center justify-center rounded-lg transition-colors', activeMode === mode.key ? mode.bgColor : 'bg-muted/60')}>
+                            <Icon className={cn('size-4 sm:size-4.5', mode.color)} />
                           </div>
-                          <span className="text-[10px] sm:text-[11px] font-medium text-muted-foreground/80 text-center leading-tight">{mode.label}</span>
+                          <span className="text-xs font-medium text-muted-foreground/80 text-center leading-tight">{mode.label}</span>
                         </button>
                       )
                     })}
@@ -1065,16 +1133,16 @@ export default function AITutor() {
                 </div>
 
 <div className="w-full max-w-xl">
-  <div className="flex items-center gap-1.5 mb-2.5">
-                    <Sparkles className="size-3.5 text-muted-foreground/50" />
-                    <span className="text-xs text-muted-foreground/60 font-medium">Suggested Questions</span>
+                <div className="flex items-center gap-1.5 mb-2.5">
+                    <Sparkles className="size-4 text-muted-foreground/50" />
+                    <span className="text-sm text-muted-foreground/60 font-medium">Try asking</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {suggestions.slice(0, 4).map((q) => (
                       <button
                         key={q}
                         onClick={() => handleSendMessage(q)}
-                        className="rounded-lg border border-border/50 bg-card/50 px-3 py-2 text-xs text-muted-foreground/70 transition-all hover:border-emerald-500/30 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/5"
+                        className="rounded-lg border border-border/50 bg-card/50 px-3.5 py-2 text-sm text-muted-foreground/70 transition-all hover:border-emerald-500/30 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/5"
                       >
                         {q}
                       </button>
@@ -1112,8 +1180,13 @@ export default function AITutor() {
                   className={cn('group flex items-start gap-2.5', msg.role === 'user' ? 'flex-row-reverse' : '')}
                 >
                   {msg.role === 'assistant' ? (
-                    <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm ring-2 ring-background mt-0.5">
-                      <Bot className="size-3.5" />
+                    <div className={cn(
+                      'flex size-7 shrink-0 items-center justify-center rounded-full text-white shadow-sm ring-2 ring-background mt-0.5',
+                      multiAgent
+                        ? 'bg-gradient-to-br from-purple-500 to-violet-600'
+                        : 'bg-gradient-to-br from-emerald-500 to-teal-600'
+                    )}>
+                      {multiAgent ? <MessageSquare className="size-3" /> : <Bot className="size-3.5" />}
                     </div>
                   ) : (
                     <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[11px] font-semibold ring-2 ring-background mt-0.5">
@@ -1121,32 +1194,37 @@ export default function AITutor() {
                     </div>
                   )}
 
-                  <div className="relative max-w-[85%] sm:max-w-[80%] md:max-w-[75%]">
+                  <div className="relative max-w-[90%] sm:max-w-[85%] md:max-w-[80%]">
                     <div
                       className={cn(
-                        'rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed',
+                        'rounded-2xl px-4 py-3 leading-relaxed',
                         msg.role === 'user'
                           ? 'rounded-tr-sm bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-sm'
-                          : 'rounded-tl-sm bg-muted shadow-xs'
+                          : 'rounded-tl-sm bg-card border border-border/40 shadow-xs'
                       )}
                     >
                       {msg.role === 'assistant' ? (
                         <div className="prose prose-neutral max-w-none dark:prose-invert prose-sm
-                          [&_p]:mb-1.5 [&_p:last-child]:mb-0
-                          [&_h1]:text-base [&_h1]:font-bold [&_h1]:mb-2
-                          [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1.5
-                          [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1
-                          [&_ul]:text-sm [&_ul]:mb-2 [&_ul]:pl-4
-                          [&_ol]:text-sm [&_ol]:mb-2 [&_ol]:pl-4
-                          [&_li]:mb-0.5
-                          [&_strong]:font-semibold
-                          [&_em]:italic
-                          [&_blockquote]:border-l-[2px] [&_blockquote]:border-emerald-500/30 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-muted-foreground/70 [&_blockquote]:my-2
-                          [&_table]:text-xs [&_table]:w-full [&_table]:my-2
-                          [&_th]:border-b [&_th]:py-1.5 [&_th]:px-2 [&_th]:text-left [&_th]:font-semibold [&_th]:bg-muted/50
-                          [&_td]:border-b [&_td]:py-1.5 [&_td]:px-2 [&_td]:text-muted-foreground/80
-                          [&_hr]:my-3 [&_hr]:border-border/50
-                          [&_code]:bg-foreground/5 [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_code]:font-mono [&_code]:border [&_code]:border-border/30
+                          [&_p]:mb-3 [&_p:last-child]:mb-0 [&_p]:leading-relaxed [&_p]:text-[15px]
+                          [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mb-1.5 [&_h1]:mt-6 [&_h1]:tracking-tight [&_h1]:text-foreground
+                          [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 [&_h2]:tracking-tight [&_h2]:text-foreground
+                          [&_h3]:text-[15px] [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-1.5 [&_h3]:text-foreground
+                          [&_ul]:text-[15px] [&_ul]:mb-3 [&_ul]:pl-5 [&_ul]:space-y-1
+                          [&_ol]:text-[15px] [&_ol]:mb-3 [&_ol]:pl-5 [&_ol]:space-y-1
+                          [&_li]:mb-0 [&_li]:leading-relaxed [&_li_>_p]:mb-0
+                          [&_li_>_ul]:mt-1 [&_li_>_ol]:mt-1
+                          [&_strong]:font-bold [&_strong]:text-foreground
+                          [&_em]:italic [&_em]:text-foreground/90
+                          [&_blockquote]:border-l-[3px] [&_blockquote]:border-emerald-500/40 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground/80 [&_blockquote]:my-4 [&_blockquote]:text-sm [&_blockquote]:bg-emerald-500/[0.03] [&_blockquote]:rounded-r-lg [&_blockquote]:py-2 [&_blockquote]:pr-3
+                          [&_table]:text-sm [&_table]:w-full [&_table]:my-3 [&_table]:border-collapse [&_table]:rounded-lg [&_table]:overflow-hidden
+                          [&_th]:border-b-2 [&_th]:py-2.5 [&_th]:px-3 [&_th]:text-left [&_th]:font-bold [&_th]:bg-muted/60 [&_th]:text-foreground [&_th]:text-sm
+                          [&_td]:border-b [&_td]:py-2.5 [&_td]:px-3 [&_td]:text-muted-foreground/90 [&_td]:text-sm
+                          [&_tr:last-child_td]:border-b-0
+                          [&_hr]:my-5 [&_hr]:border-border/30
+                          [&_code]:bg-foreground/8 [&_code]:rounded-md [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-sm [&_code]:font-mono [&_code]:text-emerald-700 dark:[&_code]:text-emerald-300 [&_code]:border [&_code]:border-border/20 [&_code]:font-medium
+                          [&_pre]:my-3 [&_pre]:rounded-xl [&_pre]:overflow-hidden [&_pre]:border [&_pre]:border-border/40
+                          [&_a]:text-emerald-600 dark:[&_a]:text-emerald-400 [&_a]:font-medium [&_a]:underline [&_a]:underline-offset-2 [&_a]:decoration-emerald-500/30 hover:[&_a]:decoration-emerald-500/60
+                          [&_img]:rounded-xl [&_img]:my-4 [&_img]:border [&_img]:border-border/20
                         ">
                           <ReactMarkdown
                             components={{
@@ -1162,16 +1240,19 @@ export default function AITutor() {
                               },
                             }}
                           >
-                            {msg.content}
+                            {displayedContents[msg.id] ?? msg.content}
                           </ReactMarkdown>
+                          {displayedContents[msg.id] !== undefined && displayedContents[msg.id] !== msg.content && (
+                            <span className="inline-block w-[2px] h-[1.1em] bg-emerald-500 animate-pulse ml-0.5 align-text-bottom" />
+                          )}
                         </div>
                       ) : (
                         msg.content
                       )}
                     </div>
 
-                    <div className={cn('mt-0.5 px-0.5', msg.role === 'user' ? 'text-right' : '')}>
-                      <span className="text-[10px] text-muted-foreground/40">{formatTime(msg.timestamp)}</span>
+                    <div className={cn('mt-1 px-1', msg.role === 'user' ? 'text-right' : '')}>
+                      <span className="text-[11px] text-muted-foreground/30">{formatTime(msg.timestamp)}</span>
                     </div>
 
                     {msg.role === 'assistant' && (
@@ -1238,7 +1319,7 @@ export default function AITutor() {
         </div>
 
         <div className="w-full border-t border-border/40 bg-transparent pt-3 pb-6 px-4 shrink-0">
-          <div className="w-full max-w-3xl mx-auto relative flex items-center gap-1.5 bg-background border border-border/50 rounded-2xl shadow-xs px-3 py-2 min-h-[52px] focus-within:ring-2 focus-within:ring-emerald-500/15 focus-within:border-emerald-500/30 transition-all duration-300">
+          <div className="w-full max-w-4xl mx-auto relative flex items-center gap-1.5 bg-background border border-border/60 rounded-2xl shadow-sm px-4 py-2.5 min-h-[56px] focus-within:ring-2 focus-within:ring-emerald-500/15 focus-within:border-emerald-500/30 transition-all duration-300">
               <div className="hidden sm:flex items-center gap-0.5 pr-0.5">
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1294,7 +1375,7 @@ export default function AITutor() {
                 }
                 disabled={isTyping}
                 rows={1}
-                className="flex-1 resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-muted-foreground/40 min-h-[28px] max-h-[160px] py-1.5 disabled:opacity-50"
+                className="flex-1 resize-none bg-transparent text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground/40 min-h-[28px] max-h-[160px] py-1 disabled:opacity-50"
               />
 
               <Button

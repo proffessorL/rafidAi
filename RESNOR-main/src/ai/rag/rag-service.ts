@@ -46,13 +46,20 @@ export class RAGService {
     return await vectorStore.search(query, topK)
   }
 
+  private cleanSourceName(source: string): string {
+    if (source.startsWith('course-')) {
+      return 'Course Material'
+    }
+    return source
+  }
+
   buildRAGContext(chunks: DocumentChunk[]): string {
     if (chunks.length === 0) return ''
 
     return chunks
       .map(
         (c, i) =>
-          `[Source ${i + 1}: ${c.metadata.source}${c.metadata.page ? `, page ${c.metadata.page}` : ''}]\n${c.text}`
+          `[${this.cleanSourceName(c.metadata.source)} — Part ${i + 1}]\n${c.text}`
       )
       .join('\n\n')
   }
@@ -68,7 +75,7 @@ ${ragContext}
 
 ---
 
-Use the above course material to inform your answer. If the material doesn't contain enough information, rely on your general knowledge. Always cite the relevant source when using the material.`
+Use the above course material to inform your answer. If the material doesn't contain enough information, rely on your general knowledge. Reference the material naturally (e.g. "according to the course material").`
   }
 
   private makeChunk(text: string, source: string, index: number): DocumentChunk {

@@ -23,37 +23,88 @@ function getFullOptionText(answer: any, key: string): string {
 }
 
 function parseAIResponse(content: string): Record<string, any> | null {
-  const jsonMatch = content.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) return null
-  let raw = jsonMatch[0]
-    .replace(/[\x00-\x1F\x7F]/g, '')
-    .replace(/,\s*([\]}])/g, '$1')
-  try {
-    const parsed = JSON.parse(raw)
-    if (!MISTAKE_TYPES.includes(parsed.mistakeType)) {
-      parsed.mistakeType = 'KNOWLEDGE_GAP'
-    }
-    return parsed
-  } catch {
-    let repaired = raw
-    const openCurlies = (repaired.match(/\{/g) || []).length
-    const closeCurlies = (repaired.match(/\}/g) || []).length
-    const openBrackets = (repaired.match(/\[/g) || []).length
-    const closeBrackets = (repaired.match(/\]/g) || []).length
-    const openQuotes = (repaired.match(/"/g) || []).length
-    if (openQuotes % 2 !== 0) repaired += '"'
-    repaired += ']'.repeat(Math.max(0, openBrackets - closeBrackets))
-    repaired += '}'.repeat(Math.max(0, openCurlies - closeCurlies))
-    try {
-      const parsed = JSON.parse(repaired)
-      if (!MISTAKE_TYPES.includes(parsed.mistakeType)) {
-        parsed.mistakeType = 'KNOWLEDGE_GAP'
-      }
-      return parsed
-    } catch {
-      return null
+  // Strip markdown code fences
+  let cleaned = content.replace(/```(?:json)?\s*/gi, '').replace(/\s*```/g, '').trim()
+
+  // Remove anything before the first '{'
+  const firstBrace = cleaned.indexOf('{')
+  if (firstBrace === -1) return null
+  cleaned = cleaned.slice(firstBrace)
+
+  // Match balanced braces to extract exactly one complete JSON object
+  let depth = 0
+  let end = -1
+  for (let i = 0; i < cleaned.length; i++) {
+    if (cleaned[i] === '{') depth++
+    else if (cleaned[i] === '}') {
+      depth--
+      if (depth === 0) { end = i + 1; break }
     }
   }
+  if (end === -1) return null
+  let raw = cleaned.slice(0, end)
+
+  // aggressive cleanup
+  raw = raw
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '') // strip control chars except \t \n \r
+    .replace(/,\s*([\]}])/g, '$1')                   // trailing commas
+
+  // Replace literal "{...}" placeholders that the AI sometimes copies from the prompt
+  raw = raw.replace(/"options":\s*\{\s*\.\.\.\s*\}/g, '"options": {"A": "Placeholder", "B": "Placeholder", "C": "Placeholder", "D": "Placeholder"}')
+
+  const tryParse = (str: string) => {
+    try {
+      const parsed = JSON.parse(str)
+      if (parsed && typeof parsed === 'object') {
+        if (!MISTAKE_TYPES.includes(parsed.mistakeType)) {
+          parsed.mistakeType = 'KNOWLEDGE_GAP'
+        }
+        return parsed
+      }
+    } catch { /* skip */ }
+    return null
+  }
+
+  // Strategy 1: try parsing as-is
+  let parsed = tryParse(raw)
+  if (parsed) return parsed
+
+  // Strategy 2: fix common escaping issues
+  const fixed = raw
+    .replace(/(?<!\\)\\(?!["\\/bfnrtu])/g, '\\\\')  // escape unescaped backslashes
+    .replace(/\n/g, '\\n')                           // escape literal newlines
+    .replace(/\t/g, '\\t')                           // escape literal tabs
+
+  parsed = tryParse(fixed)
+  if (parsed) return parsed
+
+  // Strategy 3: remove any non-printable chars and retry
+  parsed = tryParse(raw.replace(/[^\x20-\x7E]/g, '').replace(/,(\s*[}\]])/g, '$1'))
+  if (parsed) return parsed
+
+  // Strategy 4: try extracting each field individually with regex as last resort
+  try {
+    const extract = (key: string) => {
+      const m = raw.match(new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`))
+      return m ? m[1] : ''
+    }
+    const result: Record<string, any> = {
+      mistakeSummary: extract('mistakeSummary'),
+      conceptLabel: extract('conceptLabel'),
+      rootCauseAnalysis: extract('rootCauseAnalysis'),
+      reasoningBreakdown: extract('reasoningBreakdown'),
+      quickFix: extract('quickFix'),
+      correctConceptExplanation: extract('correctConceptExplanation'),
+      simplifiedAnalogy: extract('simplifiedAnalogy'),
+      stepByStepCorrection: extract('stepByStepCorrection'),
+      preventionTips: extract('preventionTips'),
+      errorCategory: extract('errorCategory'),
+      mistakeType: 'KNOWLEDGE_GAP',
+    }
+    if (result.mistakeSummary) return result
+  } catch { /* skip */ }
+
+  return null
 }
 
 async function generateExplanation(answer: any, selectedText: string, correctText: string): Promise<Record<string, any>> {

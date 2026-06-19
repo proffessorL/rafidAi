@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { notifyQuizCompleted } from '@/lib/services/notification-service'
+import { ragService } from '@/ai/rag/rag-service'
 import Groq from 'groq-sdk'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || '' })
@@ -145,7 +146,7 @@ function toFrontendFormat(dbQuestions: any[], topicName: string, difficulty: str
 
 export async function POST(request: Request) {
   try {
-    const { topics, difficulty, num_questions } = await request.json()
+    const { topics, course_ids, difficulty, num_questions } = await request.json()
     if (!topics || topics.length === 0) {
       return NextResponse.json({ error: 'At least one topic is required' }, { status: 400 })
     }
@@ -156,6 +157,25 @@ export async function POST(request: Request) {
     let rawQuestions: any[] = []
     let usedFallback = false
 
+    // Build RAG context from course material
+    let ragContextStr = ''
+    try {
+      const topicQueries = [...new Set(topicNames)]
+      for (const query of topicQueries) {
+        const chunks = await ragService.retrieveRelevantChunks(query, 3)
+        if (chunks.length > 0) {
+          ragContextStr += ragService.buildRAGContext(chunks) + '\n\n'
+        }
+      }
+      ragContextStr = ragContextStr.trim()
+    } catch {
+      // RAG unavailable — proceed without context
+    }
+
+    const ragInjection = ragContextStr
+      ? `\n\nUse the following course material to generate questions that are grounded in the actual content:\n${ragContextStr}\n\nBase your questions on this material where possible. If the material lacks sufficient detail, supplement with your general knowledge.`
+      : ''
+
     if (groq.apiKey) {
       const maxRetries = 3
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -165,13 +185,13 @@ export async function POST(request: Request) {
             messages: [
               {
                 role: 'system',
-                content: `You are a quiz generator. Generate exactly ${count} multiple-choice questions covering these topics: ${topicNames.join(', ')}. Difficulty: ${difficulty || 'medium'}.
+                content: `You are a quiz generator. Generate exactly ${count} multiple-choice questions covering these topics: ${topicNames.join(', ')}. Difficulty: ${difficulty || 'medium'}.${ragInjection}
 
 Return ONLY valid JSON with this exact structure (no markdown, no code fences):
-{"questions":[{"question":"What is the time complexity of binary search?","options":["O(n)","O(log n)","O(n log n)","O(n²)"],"correctIndex":1,"explanation":"Binary search halves the search space each step, giving O(log n) time."}]}
+{"questions":[{"question":"What is the time complexity of binary search?","options":["O(n)","O(log n)","O(n log n)","O(nÂ²)"],"correctIndex":1,"explanation":"Binary search halves the search space each step, giving O(log n) time."}]}
 
 Rules:
-- "options" must be an array of exactly 4 strings — each is the option TEXT ONLY, NO letter prefixes like "A)" or "B)"
+- "options" must be an array of exactly 4 strings â€” each is the option TEXT ONLY, NO letter prefixes like "A)" or "B)"
 - correctIndex must be 0, 1, 2, or 3 (the index of the correct option in the array)
 - explanations should be concise and educational
 - Mix questions across all provided topics

@@ -1,6 +1,48 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { getAIProvider } from '@/ai/providers'
+import { runMultiAgentChat, hasMultiAgent } from '@/ai/multi-agent'
+import { ragService } from '@/ai/rag/rag-service'
+
+// --- Performance: in-memory caches ---
+const ragCache = new Map<string, { query: string; context: string }>()
+const summaryCache = new Map<string, string>()
+const SUMMARY_THRESHOLD = 8
+
+function isRelatedQuery(a: string, b: string): boolean {
+  if (!a || !b) return false
+  const wordsA = new Set(a.toLowerCase().split(/\s+/).filter(w => w.length > 2))
+  const wordsB = new Set(b.toLowerCase().split(/\s+/).filter(w => w.length > 2))
+  const intersection = [...wordsA].filter(w => wordsB.has(w))
+  const union = new Set([...wordsA, ...wordsB])
+  return intersection.length / union.size > 0.25
+}
+
+function formatMsgsForSummary(msgs: Array<{ role: string; content: string }>): string {
+  return msgs.map(m => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.content.slice(0, 500)}`).join('\n')
+}
+
+async function updateConversationSummary(
+  sessionId: string,
+  allMessages: Array<{ role: string; content: string }>,
+): Promise<void> {
+  if (allMessages.length <= SUMMARY_THRESHOLD + 2) return
+  try {
+    const provider = getAIProvider('groq')
+    // Always summarize from the full raw conversation to avoid cascading loss
+    const oldMsgs = allMessages.slice(0, -4)
+    const result = await provider.complete({
+      messages: [
+        { role: 'system', content: 'You summarize tutoring conversations concisely (2-4 sentences). Capture: topics covered, key questions asked, student\'s pain points, what was already explained. Output ONLY the summary, no labels.' },
+        { role: 'user', content: formatMsgsForSummary(oldMsgs) },
+      ],
+      model: 'llama-3.1-8b-instant',
+      temperature: 0.3,
+      maxTokens: 256,
+    })
+    if (result) summaryCache.set(sessionId, result.trim())
+  } catch {}
+}
 
 const MODE_PROMPTS: Record<string, string> = {
   explain: `You are an expert AI Tutor in "Explain" mode for RESNOR EdTech platform.
@@ -111,16 +153,43 @@ Your coding assistance style:
 
 const DEFAULT_MODE = 'explain'
 
+async function providerFallback(systemPrompt: string, messages: Array<{ role: 'user' | 'assistant'; content: string }>): Promise<string> {
+  const provider = getAIProvider('groq')
+  let lastError: Error | null = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await provider.complete({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...messages,
+        ],
+        model: 'llama-3.1-8b-instant',
+        temperature: 0.7,
+        maxTokens: 1024,
+      })
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e))
+      if (lastError.message.includes('429') || lastError.message.includes('rate_limit')) {
+        await new Promise(r => setTimeout(r, 1500 * (attempt + 1)))
+        continue
+      }
+      throw lastError
+    }
+  }
+  throw lastError || new Error('Provider failed after retries')
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { messages, mode, topic, context, sessionId, studentId } = body as {
+    const { messages, mode, topic, context, sessionId, studentId, multiAgent } = body as {
       messages: Array<{ role: 'user' | 'assistant'; content: string }>
       mode?: string
       topic?: string
       context?: string
       sessionId?: string
       studentId?: string
+      multiAgent?: boolean
     }
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -141,6 +210,43 @@ export async function POST(request: Request) {
       contextPrefix += `\n\nCourse material context:\n${context}`
     }
 
+    let ragContextStr = ''
+
+    const lastUserMsg = messages.filter(m => m.role === 'user').pop()
+    if (lastUserMsg && !context) {
+      // Check cache: skip re-embedding for similar follow-up queries
+      if (sessionId && ragCache.has(sessionId)) {
+        const cached = ragCache.get(sessionId)!
+        if (isRelatedQuery(lastUserMsg.content, cached.query)) {
+          ragContextStr = cached.context
+        }
+      }
+
+      if (!ragContextStr) {
+        try {
+          const chunks = await ragService.retrieveRelevantChunks(lastUserMsg.content, 5)
+          if (chunks.length > 0) {
+            ragContextStr = ragService.buildRAGContext(chunks)
+            if (sessionId) {
+              ragCache.set(sessionId, { query: lastUserMsg.content, context: ragContextStr })
+            }
+          }
+        } catch (e) {
+          console.error('[Tutor Chat] RAG retrieval error:', e)
+        }
+      }
+
+      if (ragContextStr) {
+        contextPrefix += `\n\nCourse material context:\n${ragContextStr}\n\nIMPORTANT INSTRUCTIONS FOR USING THE COURSE MATERIAL:
+- DO NOT copy-paste or quote the course material directly.
+- Read the material thoroughly, understand it, then explain the concepts in your OWN words as a tutor.
+- Use the material as your knowledge source — teach from it, don't recite it.
+- If the material lacks enough detail, supplement with your own knowledge.
+- Only quote directly if it's a short definition, formula, or key term.
+- Reference the material naturally (e.g. "according to the course material" or "as covered in the course").`
+      }
+    }
+
     const finalSystemPrompt = systemPrompt + contextPrefix
 
     const conversationMessages = messages.map((m) => ({
@@ -148,18 +254,35 @@ export async function POST(request: Request) {
       content: m.content,
     }))
 
+    // --- Optimization: truncate history + inject compressed summary ---
+    const MAX_VISIBLE_EXCHANGES = 6
+    let llmMessages = conversationMessages
+    let summaryContext = ''
+
+    if (sessionId && conversationMessages.length > MAX_VISIBLE_EXCHANGES) {
+      const cachedSummary = summaryCache.get(sessionId)
+      summaryContext = cachedSummary
+        ? `[Previous conversation summary: ${cachedSummary}]`
+        : ''
+      llmMessages = conversationMessages.slice(-MAX_VISIBLE_EXCHANGES)
+    }
+
+    // --- Generate response ---
     let response: string
     try {
-      const provider = getAIProvider('groq')
-      response = await provider.complete({
-        messages: [
-          { role: 'system', content: finalSystemPrompt },
-          ...conversationMessages,
-        ],
-        model: 'llama-3.1-8b-instant',
-        temperature: 0.7,
-        maxTokens: 2048,
-      })
+      if (multiAgent && hasMultiAgent(resolvedMode)) {
+        const multiRagContext = summaryContext
+          ? summaryContext + (ragContextStr ? `\n\n${ragContextStr}` : '')
+          : ragContextStr
+        response = await runMultiAgentChat(resolvedMode, llmMessages, multiRagContext)
+        if (!response) {
+          const fbPrompt = summaryContext ? `${finalSystemPrompt}\n\n${summaryContext}` : finalSystemPrompt
+          response = await providerFallback(fbPrompt, llmMessages)
+        }
+      } else {
+        const fbPrompt = summaryContext ? `${finalSystemPrompt}\n\n${summaryContext}` : finalSystemPrompt
+        response = await providerFallback(fbPrompt, llmMessages)
+      }
     } catch (providerError) {
       const errMsg = providerError instanceof Error ? providerError.message : String(providerError)
       console.error('[Tutor Chat] Provider error:', errMsg)
@@ -175,6 +298,12 @@ export async function POST(request: Request) {
         { error: 'AI could not generate a response. Please try again.' },
         { status: 502 }
       )
+    }
+
+    // Fire-and-forget: update conversation summary in background
+    if (sessionId && messages.length + 1 > SUMMARY_THRESHOLD) {
+      const allWithResponse = [...messages, { role: 'assistant' as const, content: response }]
+      updateConversationSummary(sessionId, allWithResponse)
     }
 
     let savedTitle: string | undefined
@@ -238,7 +367,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ response, mode: resolvedMode, title: savedTitle })
+    return NextResponse.json({ response, mode: resolvedMode, title: savedTitle, multiAgent: !!(multiAgent && hasMultiAgent(resolvedMode)) })
   } catch (error) {
     console.error('[Tutor Chat] Generation error:', {
       message: error instanceof Error ? error.message : String(error),

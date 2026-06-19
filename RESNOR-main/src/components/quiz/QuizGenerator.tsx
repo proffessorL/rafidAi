@@ -26,6 +26,7 @@ import {
   Target,
   AlertTriangle,
   ChevronRight,
+  ChevronDown,
   ArrowLeft,
   Brain,
   Check,
@@ -35,6 +36,7 @@ import {
   Maximize2,
   X,
   Sparkles,
+  Search,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -78,107 +80,7 @@ interface QuizResult {
   explanation: string
 }
 
-// ── Mock Data ────────────────────────────────────────────────────────────────
-
-const TOPICS = [
-  { id: 'arrays', title: 'Arrays & Linked Lists', icon: '📊' },
-  { id: 'trees', title: 'Trees & BST', icon: '🌳' },
-  { id: 'sorting', title: 'Sorting Algorithms', icon: '🔀' },
-  { id: 'graph', title: 'Graphs & Traversal', icon: '🕸️' },
-  { id: 'dp', title: 'Dynamic Programming', icon: '🧩' },
-  { id: 'hashing', title: 'Hash Tables', icon: '🔑' },
-  { id: 'recursion', title: 'Recursion', icon: '🔄' },
-  { id: 'complexity', title: 'Big-O Complexity', icon: '📈' },
-]
-
-const QUESTIONS_BY_TOPIC: Record<string, Record<Difficulty, QuizQuestion[]>> = {
-  arrays: {
-    easy: [
-      { id: 'arr-e1', topic: 'Arrays & Linked Lists', difficulty: 'easy', question: 'What is the time complexity of accessing an element by index in an array?', options: ['O(1)', 'O(n)', 'O(log n)', 'O(nÂ²)'], correctIndex: 0, explanation: 'Arrays provide O(1) random access because elements are stored in contiguous memory, and the address of any element can be calculated directly from its index.' },
-      { id: 'arr-e2', topic: 'Arrays & Linked Lists', difficulty: 'easy', question: 'What does each node in a singly linked list contain?', options: ['Data and a pointer to the next node', 'Data and pointers to both next and previous nodes', 'Only data', 'Only a pointer'], correctIndex: 0, explanation: 'A singly linked list node contains data and one pointer to the next node. Doubly linked lists have an additional pointer to the previous node.' },
-      { id: 'arr-e3', topic: 'Arrays & Linked Lists', difficulty: 'easy', question: 'Which data structure uses contiguous memory allocation?', options: ['Array', 'Linked List', 'Binary Tree', 'Hash Table'], correctIndex: 0, explanation: 'Arrays store elements in contiguous memory locations, which enables O(1) random access. Linked lists store nodes scattered in memory, connected by pointers.' },
-      { id: 'arr-e4', topic: 'Arrays & Linked Lists', difficulty: 'easy', question: 'What happens when you try to insert an element at the beginning of an array?', options: ['All existing elements must be shifted right', 'The element is inserted in O(1)', 'A new array is always created', 'The array size doubles'], correctIndex: 0, explanation: 'Inserting at the beginning of an array requires shifting all existing elements one position to the right, resulting in O(n) time complexity.' },
-      { id: 'arr-e5', topic: 'Arrays & Linked Lists', difficulty: 'easy', question: 'What is a dynamic array?', options: ['An array that can resize itself automatically', 'An array with variable data types', 'A linked list implementation', 'An array that only grows, never shrinks'], correctIndex: 0, explanation: 'A dynamic array (like Python\'s list or Java\'s ArrayList) can resize itself automatically when full, typically by doubling the capacity and copying elements.' },
-    ],
-    medium: [
-      { id: 'arr-m1', topic: 'Arrays & Linked Lists', difficulty: 'medium', question: 'What is the time complexity of inserting at the head of a singly linked list?', options: ['O(1)', 'O(n)', 'O(log n)', 'O(n log n)'], correctIndex: 0, explanation: 'Inserting at the head only requires creating a new node, pointing it to the current head, and updating the head pointer â€” all O(1) operations.' },
-      { id: 'arr-m2', topic: 'Arrays & Linked Lists', difficulty: 'medium', question: 'Which is better for a cache-friendly implementation?', options: ['Array', 'Linked List', 'Both are equal', 'Neither'], correctIndex: 0, explanation: 'Arrays are more cache-friendly because elements are stored contiguously in memory, leading to better spatial locality and fewer cache misses.' },
-      { id: 'arr-m3', topic: 'Arrays & Linked Lists', difficulty: 'medium', question: 'How do you detect a cycle in a linked list?', options: ['Floyd\'s Cycle Detection (tortoise and hare)', 'Binary search on the list', 'Sort the list and check', 'Use a stack'], correctIndex: 0, explanation: 'Floyd\'s algorithm uses two pointers â€” a slow pointer moving one step and a fast pointer moving two steps. If they meet, a cycle exists.' },
-      { id: 'arr-m4', topic: 'Arrays & Linked Lists', difficulty: 'medium', question: 'What is the amortized time complexity of appending to a dynamic array?', options: ['O(1)', 'O(n)', 'O(log n)', 'O(nÂ²)'], correctIndex: 0, explanation: 'Although resizing is O(n), it happens infrequently. Over n insertions, the total work is O(n), making the amortized cost per insertion O(1).' },
-      { id: 'arr-m5', topic: 'Arrays & Linked Lists', difficulty: 'medium', question: 'Given a linked list: 1â†’2â†’3â†’4â†’5, after reversing it becomes:', options: ['5â†’4â†’3â†’2â†’1', '1â†’5â†’4â†’3â†’2', '2â†’3â†’4â†’5â†’1', '5â†’1â†’2â†’3â†’4'], correctIndex: 0, explanation: 'Reversing a linked list flips all the pointers: 5â†’4â†’3â†’2â†’1. This can be done iteratively in O(n) time with O(1) space.' },
-    ],
-    hard: [
-      { id: 'arr-h1', topic: 'Arrays & Linked Lists', difficulty: 'hard', question: 'What is the time complexity of merging k sorted linked lists with total n elements?', options: ['O(n log k)', 'O(nk)', 'O(nÂ²)', 'O(k log n)'], correctIndex: 0, explanation: 'Using a min-heap of size k, we can merge k sorted lists in O(n log k) time â€” n total elements, each insertion/removal from heap is O(log k).' },
-      { id: 'arr-h2', topic: 'Arrays & Linked Lists', difficulty: 'hard', question: 'Which algorithm can find the kth element from the end of a singly linked list in one pass?', options: ['Two-pointer technique with k gap', 'Reverse then traverse', 'Stack-based approach', 'Binary search'], correctIndex: 0, explanation: 'Use two pointers: advance the first pointer k steps, then move both together. When the first reaches the end, the second is at the kth from the end.' },
-      { id: 'arr-h3', topic: 'Arrays & Linked Lists', difficulty: 'hard', question: 'What is the space complexity of a recursive linked list reversal?', options: ['O(n) due to call stack', 'O(1)', 'O(log n)', 'O(nÂ²)'], correctIndex: 0, explanation: 'Recursive reversal uses O(n) space on the call stack since each recursive call adds a frame. The iterative version uses only O(1) space.' },
-      { id: 'arr-h4', topic: 'Arrays & Linked Lists', difficulty: 'hard', question: 'In a circular buffer implementation, when is data considered overwritten?', options: ['When the head catches up to the tail', 'When the buffer is exactly half full', 'When a resize operation occurs', 'Never â€” it throws an error'], correctIndex: 0, explanation: 'In a circular buffer, when the write pointer wraps around and catches the read pointer, old data is overwritten. This is a design tradeoff for O(1) operations.' },
-      { id: 'arr-h5', topic: 'Arrays & Linked Lists', difficulty: 'hard', question: 'What data structure is used to implement an LRU cache efficiently?', options: ['Hash Map + Doubly Linked List', 'Singly Linked List only', 'Array + Binary Search', 'Stack + Queue'], correctIndex: 0, explanation: 'A hash map provides O(1) lookup, and a doubly linked list provides O(1) insertion/deletion for maintaining access order. This combination achieves O(1) for both get and put.' },
-    ],
-  },
-  trees: {
-    easy: [
-      { id: 'tree-e1', topic: 'Trees & BST', difficulty: 'easy', question: 'What is the maximum number of nodes at level L of a binary tree?', options: ['2^L', '2^L - 1', 'LÂ²', 'L + 1'], correctIndex: 0, explanation: 'At level L (0-indexed root), the maximum number of nodes is 2^L. The root (level 0) has 1 node, level 1 has 2, level 2 has 4, and so on.' },
-      { id: 'tree-e2', topic: 'Trees & BST', difficulty: 'easy', question: 'In a Binary Search Tree, where are values less than the root stored?', options: ['Left subtree only', 'Right subtree only', 'Both subtrees', 'At the root level'], correctIndex: 0, explanation: 'BST property: left subtree contains only values less than the root, right subtree contains only values greater than the root.' },
-      { id: 'tree-e3', topic: 'Trees & BST', difficulty: 'easy', question: 'What is a leaf node?', options: ['A node with no children', 'The root node', 'A node with one child', 'A node at the maximum depth'], correctIndex: 0, explanation: 'A leaf node (also called an external node) is a node with no children â€” both left and right child pointers are null.' },
-      { id: 'tree-e4', topic: 'Trees & BST', difficulty: 'easy', question: 'Which traversal visits the root first?', options: ['Pre-order', 'In-order', 'Post-order', 'Level-order'], correctIndex: 0, explanation: 'Pre-order traversal visits nodes in the order: Root â†’ Left â†’ Right. In-order visits Left â†’ Root â†’ Right. Post-order visits Left â†’ Right â†’ Root.' },
-      { id: 'tree-e5', topic: 'Trees & BST', difficulty: 'easy', question: 'What is the height of a tree with only a root node?', options: ['0', '1', '-1', 'Undefined'], correctIndex: 0, explanation: 'The height of a tree with only a root node is 0, as height is defined as the number of edges on the longest path from root to a leaf.' },
-    ],
-    medium: [
-      { id: 'tree-m1', topic: 'Trees & BST', difficulty: 'medium', question: 'What is the worst-case height of a BST with n nodes?', options: ['O(n)', 'O(log n)', 'O(1)', 'O(âˆšn)'], correctIndex: 0, explanation: 'A skewed BST (essentially a linked list) has O(n) height. Self-balancing BSTs like AVL trees guarantee O(log n) height.' },
-      { id: 'tree-m2', topic: 'Trees & BST', difficulty: 'medium', question: 'What does in-order traversal of a BST produce?', options: ['Elements in sorted order', 'Elements in reverse order', 'Random order', 'Level-by-level order'], correctIndex: 0, explanation: 'In-order traversal of a BST visits left â†’ root â†’ right, which naturally produces elements in ascending sorted order.' },
-      { id: 'tree-m3', topic: 'Trees & BST', difficulty: 'medium', question: 'In an AVL tree, what is the maximum allowed balance factor?', options: ['1', '0', '2', '-1'], correctIndex: 0, explanation: 'AVL trees maintain a balance factor (height difference between left and right subtrees) of at most 1 for every node, ensuring O(log n) operations.' },
-      { id: 'tree-m4', topic: 'Trees & BST', difficulty: 'medium', question: 'Which rotation is performed when a node is inserted in the left subtree of the left child?', options: ['Right rotation (LL case)', 'Left rotation (RR case)', 'Left-Right rotation (LR case)', 'Right-Left rotation (RL case)'], correctIndex: 0, explanation: 'An LL imbalance (left-left case) requires a single right rotation to rebalance the tree.' },
-      { id: 'tree-m5', topic: 'Trees & BST', difficulty: 'medium', question: 'What is the minimum number of nodes in a complete binary tree of height h?', options: ['2^h', '2^(h+1) - 1', 'h', 'h + 1'], correctIndex: 0, explanation: 'A complete binary tree of height h has at minimum 2^h nodes (all at the last level). A full binary tree of height h has 2^(h+1) - 1 nodes.' },
-    ],
-    hard: [
-      { id: 'tree-h1', topic: 'Trees & BST', difficulty: 'hard', question: 'What is the time complexity to find the Lowest Common Ancestor (LCA) in a BST?', options: ['O(h) where h is tree height', 'O(n)', 'O(n log n)', 'O(nÂ²)'], correctIndex: 0, explanation: 'LCA in a BST can be found in O(h) by comparing node values with both targets and navigating left or right accordingly.' },
-      { id: 'tree-h2', topic: 'Trees & BST', difficulty: 'hard', question: 'A Red-Black tree with n internal nodes has height at most:', options: ['2 logâ‚‚(n + 1)', 'logâ‚‚(n)', 'n/2', 'âˆšn'], correctIndex: 0, explanation: 'A Red-Black tree guarantees height â‰¤ 2 logâ‚‚(n + 1), which is why all operations run in O(log n) time.' },
-      { id: 'tree-h3', topic: 'Trees & BST', difficulty: 'hard', question: 'How many distinct BSTs can be formed with n unique nodes?', options: ['Catalan number Câ‚™', 'n!', '2â¿', 'nÂ²'], correctIndex: 0, explanation: 'The number of distinct BSTs with n nodes is the nth Catalan number: Câ‚™ = (2n)! / ((n+1)! Ã— n!). For n=3, there are 5 BSTs.' },
-      { id: 'tree-h4', topic: 'Trees & BST', difficulty: 'hard', question: 'In a B-tree of order m, each internal node (except root) has at least:', options: ['âŒˆm/2âŒ‰ children', 'm children', 'âŒŠm/2âŒ‹ children', 'm - 1 children'], correctIndex: 0, explanation: 'In a B-tree of order m, every internal node (except root) has between âŒˆm/2âŒ‰ and m children, ensuring the tree stays balanced.' },
-      { id: 'tree-h5', topic: 'Trees & BST', difficulty: 'hard', question: 'What is the time complexity of building a BST from a sorted array using a balanced approach?', options: ['O(n)', 'O(n log n)', 'O(nÂ²)', 'O(log n)'], correctIndex: 0, explanation: 'By recursively picking the middle element as root, we can build a balanced BST from a sorted array in O(n) time since each element is processed exactly once.' },
-    ],
-  },
-  sorting: {
-    easy: [
-      { id: 'sort-e1', topic: 'Sorting Algorithms', difficulty: 'easy', question: 'Which sorting algorithm repeatedly steps through the list and swaps adjacent elements?', options: ['Bubble Sort', 'Merge Sort', 'Quick Sort', 'Heap Sort'], correctIndex: 0, explanation: 'Bubble Sort compares adjacent elements and swaps them if they\'re in the wrong order, "bubbling" larger elements to the end.' },
-      { id: 'sort-e2', topic: 'Sorting Algorithms', difficulty: 'easy', question: 'What is the best-case time complexity of Bubble Sort?', options: ['O(n)', 'O(nÂ²)', 'O(n log n)', 'O(1)'], correctIndex: 0, explanation: 'With an optimized version that stops if no swaps occur in a pass, the best case for already-sorted data is O(n).' },
-      { id: 'sort-e3', topic: 'Sorting Algorithms', difficulty: 'easy', question: 'Which sorting algorithm uses a divide-and-conquer strategy?', options: ['Merge Sort', 'Bubble Sort', 'Insertion Sort', 'Selection Sort'], correctIndex: 0, explanation: 'Merge Sort divides the array in half, recursively sorts each half, then merges them back together â€” classic divide-and-conquer.' },
-      { id: 'sort-e4', topic: 'Sorting Algorithms', difficulty: 'easy', question: 'Which sorting algorithm is NOT comparison-based?', options: ['Counting Sort', 'Quick Sort', 'Merge Sort', 'Heap Sort'], correctIndex: 0, explanation: 'Counting Sort counts occurrences of each element and doesn\'t compare elements directly. It achieves O(n + k) time where k is the range of values.' },
-      { id: 'sort-e5', topic: 'Sorting Algorithms', difficulty: 'easy', question: 'Insertion Sort is most efficient when the data is:', options: ['Nearly sorted', 'Reverse sorted', 'Randomly ordered', 'All elements are equal'], correctIndex: 0, explanation: 'Insertion Sort runs in O(n + d) where d is the number of inversions. Nearly sorted data has few inversions, making it very efficient.' },
-    ],
-    medium: [
-      { id: 'sort-m1', topic: 'Sorting Algorithms', difficulty: 'medium', question: 'What is the average time complexity of Quick Sort?', options: ['O(n log n)', 'O(nÂ²)', 'O(n)', 'O(n logÂ² n)'], correctIndex: 0, explanation: 'Quick Sort has O(n log n) average time complexity with random pivot selection, though worst case is O(nÂ²) with bad pivots.' },
-      { id: 'sort-m2', topic: 'Sorting Algorithms', difficulty: 'medium', question: 'Which sorting algorithm is stable?', options: ['Merge Sort', 'Quick Sort (standard)', 'Heap Sort', 'Selection Sort'], correctIndex: 0, explanation: 'Merge Sort preserves the relative order of equal elements (stable). Quick Sort, Heap Sort, and Selection Sort are generally not stable.' },
-      { id: 'sort-m3', topic: 'Sorting Algorithms', difficulty: 'medium', question: 'Heap Sort uses which data structure?', options: ['Binary Heap', 'BST', 'Hash Table', 'Trie'], correctIndex: 0, explanation: 'Heap Sort builds a max-heap (or min-heap) from the input data, then repeatedly extracts the maximum element to build the sorted output.' },
-      { id: 'sort-m4', topic: 'Sorting Algorithms', difficulty: 'medium', question: 'What is the space complexity of Merge Sort?', options: ['O(n)', 'O(1)', 'O(log n)', 'O(nÂ²)'], correctIndex: 0, explanation: 'Merge Sort requires O(n) auxiliary space for the temporary arrays used during the merge step. This is its main disadvantage compared to Quick Sort.' },
-      { id: 'sort-m5', topic: 'Sorting Algorithms', difficulty: 'medium', question: 'In Quick Sort, choosing the median element as pivot guarantees:', options: ['O(n log n) worst case', 'O(n) time', 'O(1) space', 'Stable sorting'], correctIndex: 0, explanation: 'If the true median is chosen as pivot, the array is always split in half, guaranteeing O(n log n) time. However, finding the median takes O(n) time per step.' },
-    ],
-    hard: [
-      { id: 'sort-h1', topic: 'Sorting Algorithms', difficulty: 'hard', question: 'What is the lower bound for comparison-based sorting?', options: ['Î©(n log n)', 'Î©(n)', 'Î©(nÂ²)', 'Î©(log n)'], correctIndex: 0, explanation: 'A comparison-based sort must make at least Î©(n log n) comparisons in the worst case, as proven by the decision tree model.' },
-      { id: 'sort-h2', topic: 'Sorting Algorithms', difficulty: 'hard', question: 'Tim Sort (used in Python/Java) is a hybrid of:', options: ['Merge Sort + Insertion Sort', 'Quick Sort + Heap Sort', 'Bubble Sort + Merge Sort', 'Radix Sort + Merge Sort'], correctIndex: 0, explanation: 'Tim Sort divides the array into "runs," sorts small runs with Insertion Sort, then merges them using a modified Merge Sort.' },
-      { id: 'sort-h3', topic: 'Sorting Algorithms', difficulty: 'hard', question: 'What is the time complexity of Radix Sort with n numbers of maximum d digits and base b?', options: ['O(d(n + b))', 'O(n log n)', 'O(nÂ²)', 'O(nd log b)'], correctIndex: 0, explanation: 'Radix Sort performs d passes, each taking O(n + b) time using counting sort as a subroutine. Total: O(d(n + b)).' },
-      { id: 'sort-h4', topic: 'Sorting Algorithms', difficulty: 'hard', question: 'Which algorithm guarantees O(n) time for sorting k distinct values out of n?', options: ['Counting Sort', 'Quick Sort', 'Merge Sort', 'Bubble Sort'], correctIndex: 0, explanation: 'When k is small (constant or O(log n)), Counting Sort runs in O(n + k) = O(n) time, beating the Î©(n log n) lower bound for comparison sorts.' },
-      { id: 'sort-h5', topic: 'Sorting Algorithms', difficulty: 'hard', question: 'The Dutch National Flag problem is best solved by a variant of:', options: ['Quick Sort (3-way partition)', 'Merge Sort', 'Heap Sort', 'Insertion Sort'], correctIndex: 0, explanation: 'Dijkstra\'s 3-way partitioning (used in 3-way Quick Sort) divides the array into three regions: less than, equal to, and greater than the pivot.' },
-    ],
-  },
-}
-
-// Fill in default questions for topics without specific questions
-const getDefaultQuestions = (topicId: string, diff: Difficulty): QuizQuestion[] => {
-  const topic = TOPICS.find((t) => t.id === topicId)
-  const title = topic?.title || topicId
-  return [
-    { id: `${topicId}-${diff}-d1`, topic: title, difficulty: diff, question: `Which concept is fundamental to understanding ${title}?`, options: ['Core data organization principles', 'Network protocols', 'Database management', 'Machine learning'], correctIndex: 0, explanation: `Understanding core data organization principles is fundamental to ${title}.` },
-    { id: `${topicId}-${diff}-d2`, topic: title, difficulty: diff, question: `What is a common use case for ${title}?`, options: ['Efficient data processing', 'Graphic rendering', 'Audio compression', 'Video encoding'], correctIndex: 0, explanation: `${title} is commonly used for efficient data processing in various applications.` },
-    { id: `${topicId}-${diff}-d3`, topic: title, difficulty: diff, question: `Which time complexity is typical for operations in ${title}?`, options: ['O(log n) or O(n)', 'O(nÂ²) always', 'O(2^n)', 'O(1) always'], correctIndex: 0, explanation: `Operations in ${title} typically have O(log n) to O(n) time complexity depending on the specific operation.` },
-    { id: `${topicId}-${diff}-d4`, topic: title, difficulty: diff, question: `What is the main advantage of ${title} over brute force?`, options: ['Significant performance improvement', 'Simpler implementation', 'Less memory usage always', 'Better error handling'], correctIndex: 0, explanation: `The main advantage of ${title} over brute force approaches is a significant performance improvement.` },
-    { id: `${topicId}-${diff}-d5`, topic: title, difficulty: diff, question: `When implementing ${title}, which consideration is most important?`, options: ['Trade-offs between time and space', 'Color of the output', 'Font size', 'Number of comments'], correctIndex: 0, explanation: `When implementing ${title}, balancing time and space complexity trade-offs is the most important consideration.` },
-  ]
-}
-
-const getQuestions = (topicId: string, diff: Difficulty): QuizQuestion[] => {
-  return QUESTIONS_BY_TOPIC[topicId]?.[diff] || getDefaultQuestions(topicId, diff)
-}
+// ── Chart Config ───────────────────────────────────────────────────────────
 
 const chartConfig = {
   score: {
@@ -245,6 +147,9 @@ export default function QuizGenerator() {
   // State
   const [step, setStep] = useState<QuizStep>('selection')
   const [selectedTopics, setSelectedTopics] = useState<string[]>([])
+  const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([])
+  const [dynamicTopics, setDynamicTopics] = useState<DynamicTopic[]>([])
+  const [topicsLoading, setTopicsLoading] = useState(true)
   const [difficulty, setDifficulty] = useState<Difficulty>('medium')
   const [questionCount, setQuestionCount] = useState(5)
   const [questions, setQuestions] = useState<QuizQuestion[]>([])
@@ -256,6 +161,8 @@ export default function QuizGenerator() {
   const [customTopic, setCustomTopic] = useState('')
   const [quizId, setQuizId] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
+  const [topicSearch, setTopicSearch] = useState('')
+  const [topicExpandedCourses, setTopicExpandedCourses] = useState<Record<string, boolean>>({})
 
   // Auto-select topic from dashboard insight click
   useEffect(() => {
@@ -306,7 +213,12 @@ export default function QuizGenerator() {
       const res = await fetch('/api/quiz/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topics: allTopics, difficulty, num_questions: questionCount }),
+        body: JSON.stringify({
+          topics: allTopics,
+          course_ids: selectedCourseIds,
+          difficulty,
+          num_questions: questionCount,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to generate quiz')
@@ -392,6 +304,27 @@ export default function QuizGenerator() {
     }
   }, [questions, answers, quizId, authUser?.id, fetchHistory])
 
+  // ── Fetch enrolled topics (like AI Tutor) ─────────────────────────────────
+
+  useEffect(() => {
+    if (!authUser?.id) { setTopicsLoading(false); return }
+    fetch(`/api/tutor/topics?student_id=${authUser.id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.topics && data.topics.length > 0) {
+          setDynamicTopics(data.topics.map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            category: t.category,
+            courseId: t.courseId,
+            courseCode: t.courseCode,
+          })))
+        }
+        setTopicsLoading(false)
+      })
+      .catch(() => setTopicsLoading(false))
+  }, [authUser?.id])
+
   // ── Fetch history on mount ───────────────────────────────────────────────
 
   useEffect(() => {
@@ -418,11 +351,16 @@ export default function QuizGenerator() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const toggleTopic = (topicId: string) => {
+  const toggleTopic = (topic: DynamicTopic) => {
     setSelectedTopics((prev) =>
-      prev.includes(topicId)
-        ? prev.filter((id) => id !== topicId)
-        : [...prev, topicId]
+      prev.includes(topic.name)
+        ? prev.filter((t) => t !== topic.name)
+        : [...prev, topic.name]
+    )
+    setSelectedCourseIds((prev) =>
+      prev.includes(topic.courseId)
+        ? prev.filter((c) => c !== topic.courseId)
+        : [...prev, topic.courseId]
     )
   }
 
@@ -582,45 +520,206 @@ export default function QuizGenerator() {
                 {selectedTopics.length} selected
               </span>
             </div>
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-              {TOPICS.map((topic, index) => {
-                const isSelected = selectedTopics.includes(topic.id)
-                return (
-                  <motion.label
-                    key={topic.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className={`relative flex cursor-pointer items-center gap-2.5 rounded-xl border p-2.5 transition-all ${
-                      isSelected
-                        ? 'border-emerald-500/50 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.06]'
-                        : 'border-slate-200/60 dark:border-border/50 hover:border-slate-300 dark:hover:border-border bg-white/40 dark:bg-background/20'
-                    }`}
-                  >
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={() => toggleTopic(topic.id)}
-                      className="data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
-                    />
-                    <span className="text-base">{topic.icon}</span>
-                    <span className="text-xs font-medium">{topic.title}</span>
-                    <AnimatePresence>
-                      {isSelected && (
-                        <motion.div
-                          initial={{ scale: 0, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0, opacity: 0 }}
-                          transition={{ type: 'spring', stiffness: 300, damping: 15 }}
-                          className="ml-auto flex size-4 shrink-0 items-center justify-center rounded-full bg-emerald-500"
+            {topicsLoading ? (
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 rounded-xl" />
+                ))}
+              </div>
+            ) : dynamicTopics.length > 0 ? (
+              <div className="space-y-3">
+                {/* Search bar */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/60" />
+                  <input
+                    type="text"
+                    value={topicSearch}
+                    onChange={(e) => setTopicSearch(e.target.value)}
+                    placeholder="Search topics..."
+                    className="w-full bg-white border border-slate-200 text-slate-800 placeholder-slate-400 dark:bg-background/40 dark:border-border/50 dark:text-foreground dark:placeholder-muted-foreground rounded-xl pl-9 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                  />
+                  {topicSearch && (
+                    <button
+                      onClick={() => setTopicSearch('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-foreground/80"
+                    >✕</button>
+                  )}
+                </div>
+                {/* Topic list */}
+                {(() => {
+                  const grouped = dynamicTopics.reduce<Record<string, DynamicTopic[]>>((acc, t) => {
+                    const key = t.category || t.courseCode || 'General'
+                    if (!acc[key]) acc[key] = []
+                    acc[key].push(t)
+                    return acc
+                  }, {})
+                  // Flatten for search mode
+                  if (topicSearch) {
+                    const flat = Object.entries(grouped).flatMap(([course, topics]) =>
+                      topics.map(t => ({ ...t, course }))
+                    ).filter(t => t.name.toLowerCase().includes(topicSearch.toLowerCase()))
+                    if (flat.length === 0) {
+                      return <div className="rounded-xl border border-dashed border-slate-200 dark:border-border/50 p-3 text-center text-sm text-muted-foreground">No topics match "{topicSearch}"</div>
+                    }
+                    return (
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {flat.map((topic, index) => {
+                          const isSelected = selectedTopics.includes(topic.name)
+                          return (
+                            <motion.label
+                              key={topic.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.03 }}
+                              className={`relative flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 transition-all ${
+                                isSelected
+                                  ? 'border-emerald-500/50 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.06]'
+                                  : 'border-slate-200/60 dark:border-border/50 hover:border-slate-300 dark:hover:border-border bg-white/40 dark:bg-background/20'
+                              }`}
+                            >
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleTopic(topic)}
+                                className="data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+                              />
+                              <span className="text-xs font-medium">{topic.name}</span>
+                              <span className="text-[10px] text-muted-foreground/60 ml-auto truncate max-w-[100px]">{topic.course}</span>
+                              <AnimatePresence>
+                                {isSelected && (
+                                  <motion.div
+                                    initial={{ scale: 0, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    exit={{ scale: 0, opacity: 0 }}
+                                    transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+                                    className="flex size-4 shrink-0 items-center justify-center rounded-full bg-emerald-500"
+                                  >
+                                    <Check className="size-2.5 text-white" />
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </motion.label>
+                          )
+                        })}
+                      </div>
+                    )
+                  }
+                  // Course accordion mode
+                  const courseEntries = Object.entries(grouped)
+                  const showAll = topicExpandedCourses['__all__']
+                  const visibleCourses = showAll ? courseEntries : courseEntries.slice(0, 4)
+                  return (
+                    <>
+                      {visibleCourses.map(([course, topics]) => {
+                        const isExpanded = topicExpandedCourses[course]
+                        const allSelected = topics.every(t => selectedTopics.includes(t.name))
+                        const someSelected = topics.some(t => selectedTopics.includes(t.name))
+                        return (
+                          <div key={course} className="rounded-xl border border-slate-200/60 dark:border-border/50 overflow-hidden">
+                            <button
+                              onClick={() => setTopicExpandedCourses(prev => ({ ...prev, [course]: !prev[course] }))}
+                              className="flex items-center gap-2 w-full px-3.5 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-card/20 transition-colors"
+                            >
+                              <motion.div
+                                animate={{ rotate: isExpanded ? 90 : 0 }}
+                                transition={{ duration: 0.15 }}
+                              >
+                                <ChevronRight className="size-4 text-muted-foreground/60" />
+                              </motion.div>
+                              <span className="text-xs font-semibold flex-1">{course}</span>
+                              {someSelected && (
+                                <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">{selectedTopics.filter(t => topics.some(tt => tt.name === t)).length}/{topics.length}</span>
+                              )}
+                              <span className="text-[10px] text-muted-foreground/50">{topics.length} topics</span>
+                            </button>
+                            <AnimatePresence initial={false}>
+                              {isExpanded && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: 'auto', opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.15, ease: 'easeInOut' }}
+                                  className="overflow-hidden border-t border-slate-100 dark:border-border/30"
+                                >
+                                  <div className="p-2.5 space-y-1.5">
+                                    {/* Select All toggle */}
+                                    <label
+                                      className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-slate-200 dark:border-border/40 px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-slate-300 dark:hover:border-border transition-all"
+                                    >
+                                      <Checkbox
+                                        checked={allSelected}
+                                        onCheckedChange={() => {
+                                          if (allSelected) {
+                                            setSelectedTopics(prev => prev.filter(t => !topics.some(tt => tt.name === t)))
+                                          } else {
+                                            setSelectedTopics(prev => [...new Set([...prev, ...topics.map(t => t.name)])])
+                                          }
+                                        }}
+                                        className="data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+                                      />
+                                      {allSelected ? 'Deselect all' : `Select all (${topics.length})`}
+                                    </label>
+                                    {/* Individual topics */}
+                                    {topics.map((topic, index) => {
+                                      const isSelected = selectedTopics.includes(topic.name)
+                                      return (
+                                        <motion.label
+                                          key={topic.id}
+                                          initial={{ opacity: 0, x: -8 }}
+                                          animate={{ opacity: 1, x: 0 }}
+                                          transition={{ delay: index * 0.03 }}
+                                          className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-all ${
+                                            isSelected
+                                              ? 'border-emerald-500/40 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.06]'
+                                              : 'border-transparent hover:bg-slate-50 dark:hover:bg-card/20'
+                                          }`}
+                                        >
+                                          <Checkbox
+                                            checked={isSelected}
+                                            onCheckedChange={() => toggleTopic(topic)}
+                                            className="size-3.5 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+                                          />
+                                          <span className="text-xs">{topic.name}</span>
+                                          <AnimatePresence>
+                                            {isSelected && (
+                                              <motion.div
+                                                initial={{ scale: 0 }}
+                                                animate={{ scale: 1 }}
+                                                exit={{ scale: 0 }}
+                                                className="ml-auto flex size-3.5 items-center justify-center rounded-full bg-emerald-500"
+                                              >
+                                                <Check className="size-2 text-white" />
+                                              </motion.div>
+                                            )}
+                                          </AnimatePresence>
+                                        </motion.label>
+                                      )
+                                    })}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        )
+                      })}
+                      {/* Show more / Show less */}
+                      {courseEntries.length > 2 && (
+                        <button
+                          onClick={() => setTopicExpandedCourses(prev => ({ ...prev, __all__: !prev['__all__'] }))}
+                          className="flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl border border-dashed border-slate-200 dark:border-border/50 text-xs text-muted-foreground hover:text-foreground hover:border-slate-300 dark:hover:border-border transition-all"
                         >
-                          <Check className="size-2.5 text-white" />
-                        </motion.div>
+                          <ChevronDown className={`size-3.5 transition-transform ${topicExpandedCourses['__all__'] ? 'rotate-180' : ''}`} />
+                          {topicExpandedCourses['__all__'] ? 'Show less' : `Show more (${courseEntries.length - 4} more courses)`}
+                        </button>
                       )}
-                    </AnimatePresence>
-                  </motion.label>
-                )
-              })}
-            </div>
+                    </>
+                  )
+                })()}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-200 dark:border-border/50 p-4 text-center text-sm text-muted-foreground">
+                No enrolled courses yet. Enroll in a course with AI Tutor content to see topics here, or type a custom topic below.
+              </div>
+            )}
           </div>
 
           {/* Custom Topic Input */}

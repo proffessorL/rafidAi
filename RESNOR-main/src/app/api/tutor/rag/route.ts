@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ results: chunks, count: chunks.length })
   }
 
-  const stats = vectorStore.getStats()
+  const stats = await vectorStore.getStats()
   return NextResponse.json(stats)
 }
 

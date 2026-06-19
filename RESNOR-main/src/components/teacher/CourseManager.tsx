@@ -21,6 +21,7 @@ interface Material {
   title: string;
   contentType: string;
   contentUrl: string;
+  content: string;
   estimatedTime: string;
 }
 
@@ -54,6 +55,7 @@ const emptyMaterial = (): Material => ({
   title: "",
   contentType: "document",
   contentUrl: "",
+  content: "",
   estimatedTime: "",
 });
 
@@ -138,6 +140,7 @@ export default function CourseManager() {
                 title: m.title,
                 contentType: m.contentType || 'document',
                 contentUrl: m.contentUrl || '',
+                content: m.content || '',
                 estimatedTime: String(m.estimatedTime || 30),
               }))
             : [emptyMaterial()],
@@ -313,6 +316,7 @@ export default function CourseManager() {
               title: m.title,
               contentType: m.contentType,
               contentUrl: m.contentUrl,
+              content: m.content,
               estimatedTime: Number(m.estimatedTime),
             })),
           })),
@@ -652,6 +656,20 @@ export default function CourseManager() {
                                 required
                               />
                             </div>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-xs text-muted-foreground">
+                              Content <span className="text-[10px] text-orange-400">(for AI Tutor)</span>
+                            </label>
+                            <Textarea
+                              placeholder="Paste the lesson text here so the AI Tutor can answer questions about it..."
+                              value={material.content}
+                              onChange={(e) =>
+                                updateMaterial(ti, mi, "content", e.target.value)
+                              }
+                              rows={4}
+                            />
                           </div>
                         </div>
                       ))}
