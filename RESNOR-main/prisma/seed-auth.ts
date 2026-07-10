@@ -47,6 +47,16 @@ async function seedDemoUsers() {
       phone: '01712345603',
       semester: '3rd',
     },
+    {
+      email: 'ayesha@diu.edu.bd',
+      name: 'Ayesha Rahman',
+      role: 'student',
+      password: 'demo123',
+      studentId: 'CSE-401',
+      institution: 'Daffodil International University',
+      phone: '01712345604',
+      semester: '5th',
+    },
   ]
 
   for (const u of demoUsers) {

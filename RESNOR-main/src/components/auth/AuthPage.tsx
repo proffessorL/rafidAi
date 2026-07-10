@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useSyncExternalStore, useCallback, type FormEvent } from 'react'
+import { useState, useEffect, useSyncExternalStore, useCallback, type FormEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useAuthStore, type AuthUser } from '@/stores/auth'
@@ -181,6 +181,8 @@ export default function AuthPage() {
   const [studentId, setStudentId] = useState('')
   const [institution, setInstitution] = useState('')
 
+  const [stats, setStats] = useState({ students: 0, courses: 0, satisfaction: 0 })
+
   const { setAuth, hydrate } = useAuthStore()
   const { setCurrentUser, setActivePage } = useAppStore()
   const { theme, setTheme } = useTheme()
@@ -190,6 +192,13 @@ export default function AuthPage() {
     () => true,
     () => false,
   )
+
+  useEffect(() => {
+    fetch('/api/platform-stats')
+      .then((res) => res.json())
+      .then((data) => setStats(data))
+      .catch(() => {})
+  }, [])
 
   const handleLogin = useCallback(async (e: FormEvent) => {
     e.preventDefault()
@@ -385,9 +394,9 @@ export default function AuthPage() {
           className="relative z-10 flex items-center gap-8"
         >
           {[
-            { value: '10K+', label: 'Students' },
-            { value: '500+', label: 'Courses' },
-            { value: '95%', label: 'Satisfaction' },
+            { value: stats.students.toString(), label: 'Students' },
+            { value: stats.courses.toString(), label: 'Courses' },
+            { value: `${stats.satisfaction}%`, label: 'Satisfaction' },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
               <p className="text-xl font-bold text-white">{stat.value}</p>
@@ -605,7 +614,7 @@ export default function AuthPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        setEmail('rafiq@diu.edu.bd')
+                        setEmail('ayesha@diu.edu.bd')
                         setPassword('demo123')
                         setRole('student')
                       }}

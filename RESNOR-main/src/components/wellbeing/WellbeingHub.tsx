@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Heart, Brain, Timer, Flame,
   MessageCircle, BookOpen, AlertTriangle,
-  ChevronLeft, ChevronDown,
+  ChevronLeft, ChevronRight, ChevronDown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -35,10 +35,10 @@ interface TabItem {
 const tabs: TabItem[] = [
   { key: 'dashboard', label: 'Overview', icon: LayoutDashboard, desc: 'Wellbeing overview & analytics' },
   { key: 'mood', label: 'Mood Tracker', icon: Heart, desc: 'Track stress & emotional wellbeing' },
-  { key: 'mentor', label: 'AI Mentor', icon: Brain, desc: 'Personalized AI academic mentor' },
+  { key: 'mentor', label: 'Chat With Mentor', icon: Brain, desc: 'Personalized AI academic mentor' },
   { key: 'focus', label: 'Focus Mode', icon: Timer, desc: 'Distraction-free study sessions' },
   { key: 'burnout', label: 'Burnout', icon: Flame, desc: 'Burnout risk prediction' },
-  { key: 'chatbot', label: 'AI Chat', icon: MessageCircle, desc: 'Emotion-aware support chatbot' },
+  { key: 'chatbot', label: 'Emotion Chat', icon: MessageCircle, desc: 'Emotion-aware support chatbot' },
   { key: 'journal', label: 'Journal', icon: BookOpen, desc: 'Private reflection journal' },
 ]
 
@@ -105,6 +105,17 @@ export default function WellbeingHub() {
             </button>
           </div>
         </div>
+
+        {/* Show sidebar button (when hidden) */}
+        {!sidebarOpen && (
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="hidden md:flex items-center justify-center h-10 w-6 -ml-3 mt-12 rounded-r-lg bg-muted/80 border border-l-0 border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0 z-10"
+            title="Show sidebar"
+          >
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        )}
 
         {/* Main Content */}
         <div className="flex-1 min-w-0 flex flex-col">
