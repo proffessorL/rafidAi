@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
 import { toast } from 'sonner'
@@ -110,6 +110,272 @@ function fillTopicSuggestions(suggestions: string[], topic: string | null): stri
   return suggestions.map(s => s.replace('{topic}', t))
 }
 
+interface SidebarContentProps {
+  conversations: Conversation[]
+  activeConversationId: string | null
+  sidebarTab: 'chats' | 'topics'
+  setSidebarTab: (tab: 'chats' | 'topics') => void
+  topicSearch: string
+  setTopicSearch: (search: string) => void
+  filteredTopics: TopicCard[]
+  expandedCourses: Set<string>
+  setExpandedCourses: (fn: Set<string> | ((prev: Set<string>) => Set<string>)) => void
+  activeTopic: string | null
+  handleSelectTopic: (id: string) => void
+  createNewConversation: () => Promise<void>
+  switchConversation: (id: string) => void
+  deleteConversation: (id: string) => void
+  setMobileSheetOpen: (open: boolean) => void
+}
+
+const SidebarContent = memo(function SidebarContent({
+  conversations, activeConversationId, sidebarTab, setSidebarTab,
+  topicSearch, setTopicSearch, filteredTopics, expandedCourses,
+  setExpandedCourses, activeTopic, handleSelectTopic,
+  createNewConversation, switchConversation, deleteConversation, setMobileSheetOpen
+}: SidebarContentProps) {
+  return (
+    <div className="flex flex-col h-full w-full">
+      <div className="flex items-center gap-3 px-4 py-3.5 border-b">
+        <div className="flex size-8 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/20">
+          <Bot className="size-4" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-sm font-bold text-foreground">AI Tutor</h2>
+          <p className="text-[11px] text-muted-foreground/70">7 learning modes</p>
+        </div>
+      </div>
+
+      <div className="px-4 pt-3 pb-2">
+        <Button
+          onClick={() => { createNewConversation(); setMobileSheetOpen(false) }}
+          className="w-full gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-sm shadow-emerald-500/20 h-9 text-xs"
+        >
+          <Plus className="size-4" />
+          New Chat
+        </Button>
+      </div>
+
+      <div className="relative flex items-center bg-slate-500/[0.03] dark:bg-white/[0.01] backdrop-blur-sm border border-slate-200/50 dark:border-white/5 p-1 mx-4 mb-2 rounded-xl shadow-none">
+        <button
+          onClick={() => setSidebarTab('chats')}
+          className={cn(
+            'flex-1 relative z-10 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs transition-colors duration-200',
+            sidebarTab === 'chats' ? 'text-emerald-600 font-semibold dark:text-white dark:font-medium' : 'text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+          )}
+        >
+          {sidebarTab === 'chats' && (
+            <motion.div
+              layoutId="activeSidebarTabPill"
+              className="absolute inset-0 bg-white dark:bg-white/[0.06] border border-slate-200/80 dark:border-white/10 rounded-lg shadow-sm shadow-slate-200/50 dark:shadow-black/40 z-0 backdrop-blur-md"
+              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+            />
+          )}
+          <span className="relative z-10 flex items-center gap-1.5">
+            <MessageSquare className="size-3.5" />
+            Chats
+          </span>
+        </button>
+        <button
+          onClick={() => setSidebarTab('topics')}
+          className={cn(
+            'flex-1 relative z-10 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs transition-colors duration-200',
+            sidebarTab === 'topics' ? 'text-emerald-600 font-semibold dark:text-white dark:font-medium' : 'text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+          )}
+        >
+          {sidebarTab === 'topics' && (
+            <motion.div
+              layoutId="activeSidebarTabPill"
+              className="absolute inset-0 bg-white dark:bg-white/[0.06] border border-slate-200/80 dark:border-white/10 rounded-lg shadow-sm shadow-slate-200/50 dark:shadow-black/40 z-0 backdrop-blur-md"
+              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+            />
+          )}
+          <span className="relative z-10 flex items-center gap-1.5">
+            <BookOpen className="size-3.5" />
+            Topics
+          </span>
+        </button>
+      </div>
+
+      <div className="mx-4 h-px bg-border/50" />
+
+      <ScrollArea className="flex-1 min-h-0 w-full">
+        {sidebarTab === 'chats' ? (
+          <div className="px-3 py-2 space-y-0.5">
+            {conversations.length === 0 && (
+              <div className="py-10 text-center">
+                <MessageSquare className="size-8 mx-auto mb-2 text-muted-foreground/20" />
+                <p className="text-xs text-muted-foreground/60">No conversations yet</p>
+                <p className="text-[11px] text-muted-foreground/40 mt-1">Start a new chat to begin</p>
+              </div>
+            )}
+            <AnimatePresence>
+              {conversations.slice(0, 10).map((conv, index) => {
+                const modeInfo = MODES.find(m => m.key === conv.mode)
+                const ModeIcon = modeInfo?.icon || BookOpen
+                const isActive = conv.id === activeConversationId
+
+                return (
+                    <motion.div
+                    key={conv.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ delay: index * 0.03 }}
+                    className="w-full"
+                  >
+                    <div
+                      className={cn(
+                        'group flex items-start gap-2.5 rounded-lg p-2.5 cursor-pointer transition-all w-full',
+                        'hover:bg-muted/60',
+                        isActive && 'bg-emerald-500/10 ring-1 ring-emerald-500/20'
+                      )}
+                      onClick={() => { switchConversation(conv.id); setMobileSheetOpen(false) }}
+                    >
+                      <div className={cn(
+                        'flex size-7 items-center justify-center rounded-md shrink-0 transition-colors',
+                        isActive ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-muted/60 text-muted-foreground'
+                      )}>
+                        <ModeIcon className="size-3.5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">{conv.title}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className={cn('text-[10px]', isActive ? 'text-emerald-600/60 dark:text-emerald-400/60' : 'text-muted-foreground/50')}>{formatDate(conv.createdAt)}</span>
+                          {conv.topic && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground/60 font-medium">{conv.topic}</span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteConversation(conv.id) }}
+                        className="opacity-0 group-hover:opacity-100 size-6 rounded-md flex items-center justify-center text-muted-foreground/40 hover:text-rose-500 hover:bg-rose-500/10 transition-all shrink-0"
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </AnimatePresence>
+          </div>
+        ) : (
+          <div className="px-3 py-2 space-y-3">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search courses & topics..."
+                value={topicSearch}
+                onChange={(e) => setTopicSearch(e.target.value)}
+                className="pl-8 h-8 text-xs"
+              />
+            </div>
+
+            {filteredTopics.length === 0 ? (
+              <div className="py-8 text-center">
+                <BookOpen className="size-8 mx-auto mb-2 text-muted-foreground/30" />
+                <p className="text-xs text-muted-foreground">No topics found</p>
+                <p className="text-[10px] text-muted-foreground/60 mt-0.5">Try a different search term</p>
+              </div>
+            ) : (
+              (() => {
+                const groups = new Map<string, { courseCode: string; courseName: string; topics: TopicCard[] }>()
+                for (const t of filteredTopics) {
+                  const key = t.courseCode || t.category
+                  if (!groups.has(key)) {
+                    groups.set(key, { courseCode: key, courseName: t.category, topics: [] })
+                  }
+                  groups.get(key)!.topics.push(t)
+                }
+                const hasSearch = topicSearch.trim().length > 0
+                return Array.from(groups.entries()).map(([key, group]) => {
+                  const isExpanded = expandedCourses.has(key)
+                  const hasActive = group.topics.some(t => t.id === activeTopic)
+                  return (
+                    <div key={key} className="rounded-xl border border-border/50 bg-card overflow-hidden">
+                      <button
+                        onClick={() => {
+                          setExpandedCourses(prev => {
+                            const next = new Set(prev)
+                            if (next.has(key)) next.delete(key)
+                            else next.add(key)
+                            return next
+                          })
+                        }}
+                        className={cn(
+                          'flex items-center gap-2.5 w-full px-4 py-3 text-left transition-colors',
+                          hasActive ? 'bg-emerald-500/10' : 'hover:bg-muted/60'
+                        )}
+                      >
+                        <ChevronRight
+                          className={cn(
+                            'size-3.5 shrink-0 text-muted-foreground transition-transform duration-200',
+                            isExpanded && 'rotate-90'
+                          )}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold truncate">{group.courseName}</p>
+                          <p className="text-[10px] text-muted-foreground/70">{group.courseCode} &middot; {group.topics.length} {group.topics.length === 1 ? 'topic' : 'topics'}</p>
+                        </div>
+                        {hasActive && (
+                          <div className="size-1.5 rounded-full bg-emerald-500 shrink-0" />
+                        )}
+                      </button>
+
+                      <AnimatePresence initial={false}>
+                        {isExpanded && (
+                          <motion.div
+                            key="content"
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2, ease: 'easeInOut' }}
+                            className="overflow-hidden"
+                          >
+                            <div className="border-t border-border/30 px-1.5 pb-2">
+                              {group.topics.map((topic, idx) => {
+                                const isSelected = activeTopic === topic.id
+                                return (
+                                  <motion.button
+                                    key={topic.id}
+                                    initial={{ opacity: 0, x: -8 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: idx * 0.03 }}
+                                    onClick={() => handleSelectTopic(topic.id)}
+                                    className={cn(
+                                      'flex items-center gap-2.5 w-full rounded-lg px-3 py-2.5 text-left transition-all',
+                                      isSelected
+                                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                                    )}
+                                  >
+                                    <div className={cn(
+                                      'size-1.5 rounded-full shrink-0 transition-colors',
+                                      isSelected ? 'bg-emerald-500' : 'bg-border'
+                                    )} />
+                                    <span className="text-xs font-medium leading-snug truncate">{topic.name}</span>
+                                    {isSelected && (
+                                      <span className="ml-auto text-[10px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">Active</span>
+                                    )}
+                                  </motion.button>
+                                )
+                              })}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )
+                })
+              })()
+            )}
+          </div>
+        )}
+      </ScrollArea>
+    </div>
+  )
+})
+
 export default function AITutor() {
   const authUser = useAuthStore((s) => s.user)
 
@@ -134,6 +400,9 @@ export default function AITutor() {
 
   const [displayedContents, setDisplayedContents] = useState<Record<string, string>>({})
   const typewriterIntervals = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map())
+
+  const inputValueRef = useRef(inputValue)
+  useEffect(() => { inputValueRef.current = inputValue }, [inputValue])
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -335,7 +604,7 @@ export default function AITutor() {
   }, [])
 
   const handleSendMessage = useCallback(async (text?: string) => {
-    const content = (text || inputValue).trim()
+    const content = (text || inputValueRef.current).trim()
     if (!content || isTyping || !authUser?.id) return
 
     setInputValue('')
@@ -471,7 +740,7 @@ export default function AITutor() {
     } finally {
       setIsTyping(false)
     }
-  }, [inputValue, isTyping, activeConversationId, activeMode, activeTopic, activeTopicCard, conversations, authUser?.id])
+  }, [isTyping, activeConversationId, activeMode, activeTopic, activeTopicCard, conversations, authUser?.id])
 
   const pendingTutorContext = useAppStore((s) => s.pendingTutorContext)
   const setPendingTutorContext = useAppStore((s) => s.setPendingTutorContext)
@@ -687,247 +956,6 @@ export default function AITutor() {
     )
   }
 
-  const SidebarContent = () => (
-    <div className="flex flex-col h-full w-full">
-      <div className="flex items-center gap-3 px-4 py-3.5 border-b">
-        <div className="flex size-8 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/20">
-          <Bot className="size-4" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-bold text-foreground">AI Tutor</h2>
-          <p className="text-[11px] text-muted-foreground/70">7 learning modes</p>
-        </div>
-      </div>
-
-      <div className="px-4 pt-3 pb-2">
-        <Button
-          onClick={() => { createNewConversation(); setMobileSheetOpen(false) }}
-          className="w-full gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-sm shadow-emerald-500/20 h-9 text-xs"
-        >
-          <Plus className="size-4" />
-          New Chat
-        </Button>
-      </div>
-
-      <div className="relative flex items-center bg-slate-500/[0.03] dark:bg-white/[0.01] backdrop-blur-sm border border-slate-200/50 dark:border-white/5 p-1 mx-4 mb-2 rounded-xl shadow-none">
-        <button
-          onClick={() => setSidebarTab('chats')}
-          className={cn(
-            'flex-1 relative z-10 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs transition-colors duration-200',
-            sidebarTab === 'chats' ? 'text-emerald-600 font-semibold dark:text-white dark:font-medium' : 'text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-          )}
-        >
-          {sidebarTab === 'chats' && (
-            <motion.div
-              layoutId="activeSidebarTabPill"
-              className="absolute inset-0 bg-white dark:bg-white/[0.06] border border-slate-200/80 dark:border-white/10 rounded-lg shadow-sm shadow-slate-200/50 dark:shadow-black/40 z-0 backdrop-blur-md"
-              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-            />
-          )}
-          <span className="relative z-10 flex items-center gap-1.5">
-            <MessageSquare className="size-3.5" />
-            Chats
-          </span>
-        </button>
-        <button
-          onClick={() => setSidebarTab('topics')}
-          className={cn(
-            'flex-1 relative z-10 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs transition-colors duration-200',
-            sidebarTab === 'topics' ? 'text-emerald-600 font-semibold dark:text-white dark:font-medium' : 'text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-          )}
-        >
-          {sidebarTab === 'topics' && (
-            <motion.div
-              layoutId="activeSidebarTabPill"
-              className="absolute inset-0 bg-white dark:bg-white/[0.06] border border-slate-200/80 dark:border-white/10 rounded-lg shadow-sm shadow-slate-200/50 dark:shadow-black/40 z-0 backdrop-blur-md"
-              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-            />
-          )}
-          <span className="relative z-10 flex items-center gap-1.5">
-            <BookOpen className="size-3.5" />
-            Topics
-          </span>
-        </button>
-      </div>
-
-      <div className="mx-4 h-px bg-border/50" />
-
-      <ScrollArea className="flex-1 min-h-0 w-full">
-        {sidebarTab === 'chats' ? (
-          <div className="px-3 py-2 space-y-0.5">
-            {conversations.length === 0 && (
-              <div className="py-10 text-center">
-                <MessageSquare className="size-8 mx-auto mb-2 text-muted-foreground/20" />
-                <p className="text-xs text-muted-foreground/60">No conversations yet</p>
-                <p className="text-[11px] text-muted-foreground/40 mt-1">Start a new chat to begin</p>
-              </div>
-            )}
-            <AnimatePresence>
-              {conversations.slice(0, 10).map((conv, index) => {
-                const modeInfo = MODES.find(m => m.key === conv.mode)
-                const ModeIcon = modeInfo?.icon || BookOpen
-                const isActive = conv.id === activeConversationId
-
-                return (
-                    <motion.div
-                    key={conv.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
-                    transition={{ delay: index * 0.03 }}
-                    className="w-full"
-                  >
-                    <div
-                      className={cn(
-                        'group flex items-start gap-2.5 rounded-lg p-2.5 cursor-pointer transition-all w-full',
-                        'hover:bg-muted/60',
-                        isActive && 'bg-emerald-500/10 ring-1 ring-emerald-500/20'
-                      )}
-                      onClick={() => { switchConversation(conv.id); setMobileSheetOpen(false) }}
-                    >
-                      <div className={cn(
-                        'flex size-7 items-center justify-center rounded-md shrink-0 transition-colors',
-                        isActive ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-muted/60 text-muted-foreground'
-                      )}>
-                        <ModeIcon className="size-3.5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium truncate">{conv.title}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className={cn('text-[10px]', isActive ? 'text-emerald-600/60 dark:text-emerald-400/60' : 'text-muted-foreground/50')}>{formatDate(conv.createdAt)}</span>
-                          {conv.topic && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground/60 font-medium">{conv.topic}</span>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); deleteConversation(conv.id) }}
-                        className="opacity-0 group-hover:opacity-100 size-6 rounded-md flex items-center justify-center text-muted-foreground/40 hover:text-rose-500 hover:bg-rose-500/10 transition-all shrink-0"
-                      >
-                        <Trash2 className="size-3" />
-                      </button>
-                    </div>
-                  </motion.div>
-                )
-              })}
-            </AnimatePresence>
-          </div>
-        ) : (
-          <div className="px-3 py-2 space-y-3">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Search courses & topics..."
-                value={topicSearch}
-                onChange={(e) => setTopicSearch(e.target.value)}
-                className="pl-8 h-8 text-xs"
-              />
-            </div>
-
-            {filteredTopics.length === 0 ? (
-              <div className="py-8 text-center">
-                <BookOpen className="size-8 mx-auto mb-2 text-muted-foreground/30" />
-                <p className="text-xs text-muted-foreground">No topics found</p>
-                <p className="text-[10px] text-muted-foreground/60 mt-0.5">Try a different search term</p>
-              </div>
-            ) : (
-              (() => {
-                const groups = new Map<string, { courseCode: string; courseName: string; topics: TopicCard[] }>()
-                for (const t of filteredTopics) {
-                  const key = t.courseCode || t.category
-                  if (!groups.has(key)) {
-                    groups.set(key, { courseCode: key, courseName: t.category, topics: [] })
-                  }
-                  groups.get(key)!.topics.push(t)
-                }
-                const hasSearch = topicSearch.trim().length > 0
-                return Array.from(groups.entries()).map(([key, group]) => {
-                  const isExpanded = expandedCourses.has(key)
-                  const hasActive = group.topics.some(t => t.id === activeTopic)
-                  return (
-                    <div key={key} className="rounded-xl border border-border/50 bg-card overflow-hidden">
-                      <button
-                        onClick={() => {
-                          setExpandedCourses(prev => {
-                            const next = new Set(prev)
-                            if (next.has(key)) next.delete(key)
-                            else next.add(key)
-                            return next
-                          })
-                        }}
-                        className={cn(
-                          'flex items-center gap-2.5 w-full px-4 py-3 text-left transition-colors',
-                          hasActive ? 'bg-emerald-500/10' : 'hover:bg-muted/60'
-                        )}
-                      >
-                        <ChevronRight
-                          className={cn(
-                            'size-3.5 shrink-0 text-muted-foreground transition-transform duration-200',
-                            isExpanded && 'rotate-90'
-                          )}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold truncate">{group.courseName}</p>
-                          <p className="text-[10px] text-muted-foreground/70">{group.courseCode} · {group.topics.length} {group.topics.length === 1 ? 'topic' : 'topics'}</p>
-                        </div>
-                        {hasActive && (
-                          <div className="size-1.5 rounded-full bg-emerald-500 shrink-0" />
-                        )}
-                      </button>
-
-                      <AnimatePresence initial={false}>
-                        {isExpanded && (
-                          <motion.div
-                            key="content"
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.2, ease: 'easeInOut' }}
-                            className="overflow-hidden"
-                          >
-                            <div className="border-t border-border/30 px-1.5 pb-2">
-                              {group.topics.map((topic, idx) => {
-                                const isSelected = activeTopic === topic.id
-                                return (
-                                  <motion.button
-                                    key={topic.id}
-                                    initial={{ opacity: 0, x: -8 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: idx * 0.03 }}
-                                    onClick={() => handleSelectTopic(topic.id)}
-                                    className={cn(
-                                      'flex items-center gap-2.5 w-full rounded-lg px-3 py-2.5 text-left transition-all',
-                                      isSelected
-                                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                                    )}
-                                  >
-                                    <div className={cn(
-                                      'size-1.5 rounded-full shrink-0 transition-colors',
-                                      isSelected ? 'bg-emerald-500' : 'bg-border'
-                                    )} />
-                                    <span className="text-xs font-medium leading-snug truncate">{topic.name}</span>
-                                    {isSelected && (
-                                      <span className="ml-auto text-[10px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">Active</span>
-                                    )}
-                                  </motion.button>
-                                )
-                              })}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  )
-                })
-              })()
-            )}
-          </div>
-        )}
-      </ScrollArea>
-    </div>
-  )
-
   return (
     <div className="flex h-full min-h-0 w-full max-h-screen overflow-hidden">
       <aside
@@ -937,7 +965,23 @@ export default function AITutor() {
         )}
       >
         <div className={cn('w-80 xl:w-80 2xl:w-96 h-full', !sidebarOpen && 'pointer-events-none')}>
-          <SidebarContent />
+          <SidebarContent
+            conversations={conversations}
+            activeConversationId={activeConversationId}
+            sidebarTab={sidebarTab}
+            setSidebarTab={setSidebarTab}
+            topicSearch={topicSearch}
+            setTopicSearch={setTopicSearch}
+            filteredTopics={filteredTopics}
+            expandedCourses={expandedCourses}
+            setExpandedCourses={setExpandedCourses}
+            activeTopic={activeTopic}
+            handleSelectTopic={handleSelectTopic}
+            createNewConversation={createNewConversation}
+            switchConversation={switchConversation}
+            deleteConversation={deleteConversation}
+            setMobileSheetOpen={setMobileSheetOpen}
+          />
         </div>
       </aside>
 
@@ -945,7 +989,23 @@ export default function AITutor() {
         <SheetContent side="left" className="w-80 p-0 backdrop-blur-xl bg-card/95">
           <SheetTitle className="sr-only">AI Tutor Sidebar</SheetTitle>
           <SheetDescription className="sr-only">Chat history and topic selection</SheetDescription>
-          <SidebarContent />
+          <SidebarContent
+            conversations={conversations}
+            activeConversationId={activeConversationId}
+            sidebarTab={sidebarTab}
+            setSidebarTab={setSidebarTab}
+            topicSearch={topicSearch}
+            setTopicSearch={setTopicSearch}
+            filteredTopics={filteredTopics}
+            expandedCourses={expandedCourses}
+            setExpandedCourses={setExpandedCourses}
+            activeTopic={activeTopic}
+            handleSelectTopic={handleSelectTopic}
+            createNewConversation={createNewConversation}
+            switchConversation={switchConversation}
+            deleteConversation={deleteConversation}
+            setMobileSheetOpen={setMobileSheetOpen}
+          />
         </SheetContent>
       </Sheet>
 

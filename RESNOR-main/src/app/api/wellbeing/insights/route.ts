@@ -6,34 +6,15 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const studentId = searchParams.get('student_id') || 'stu_001'
 
-    const analytics = await db.wellbeingAnalytics.findUnique({ where: { studentId } })
-
-    const recentMoods = await db.moodEntry.findMany({
-      where: { studentId },
-      orderBy: { createdAt: 'desc' },
-      take: 14,
-    })
-
-    const journals = await db.wellbeingJournal.findMany({
-      where: { studentId },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-    })
-
-    const burnoutPredictions = await db.burnoutPrediction.findMany({
-      where: { studentId },
-      orderBy: { analyzedAt: 'desc' },
-      take: 6,
-    })
-
-    const focusSessions = await db.focusSession.findMany({
-      where: { studentId, completed: true },
-      orderBy: { completedAt: 'desc' },
-      take: 30,
-    })
-
-    const streak = await db.streak.findUnique({ where: { studentId } })
-    const engagement = await db.engagementScore.findUnique({ where: { studentId } })
+    const [analytics, recentMoods, journals, burnoutPredictions, focusSessions, streak, engagement] = await Promise.all([
+      db.wellbeingAnalytics.findUnique({ where: { studentId } }),
+      db.moodEntry.findMany({ where: { studentId }, orderBy: { createdAt: 'desc' }, take: 14 }),
+      db.wellbeingJournal.findMany({ where: { studentId }, orderBy: { createdAt: 'desc' }, take: 5 }),
+      db.burnoutPrediction.findMany({ where: { studentId }, orderBy: { analyzedAt: 'desc' }, take: 6 }),
+      db.focusSession.findMany({ where: { studentId, completed: true }, orderBy: { completedAt: 'desc' }, take: 30 }),
+      db.streak.findUnique({ where: { studentId } }),
+      db.engagementScore.findUnique({ where: { studentId } }),
+    ])
 
     const totalFocusMinutes = focusSessions.reduce((s, e) => s + Math.round(e.actualSeconds / 60), 0)
     const avgMood = recentMoods.length

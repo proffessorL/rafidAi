@@ -3,44 +3,34 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const totalStudents = await db.user.count({ where: { role: 'student' } })
-    const totalMaterials = await db.material.count()
+    const activeThreshold = new Date(Date.now() - 7 * 86400000)
 
-    const materialProgressRecords = await db.materialProgress.findMany({
-      select: { completionStatus: true },
-    })
+    const [totalStudents, totalMaterials, materialProgressRecords, allAttempts, studentIds, activeGroups, topics] = await Promise.all([
+      db.user.count({ where: { role: 'student' } }),
+      db.material.count(),
+      db.materialProgress.findMany({ select: { completionStatus: true } }),
+      db.quizAttempt.findMany({ select: { score: true } }),
+      db.user.findMany({ where: { role: 'student' }, select: { id: true } }),
+      db.telemetryRecord.groupBy({
+        by: ['studentId'],
+        where: { createdAt: { gte: activeThreshold } },
+        _count: true,
+      }),
+      db.topic.findMany({ include: { materials: true, course: true } }),
+    ])
+
     const totalProgressRecords = materialProgressRecords.length
     const doneCount = materialProgressRecords.filter(p => p.completionStatus === 'done').length
     const avgCompletionRate = totalProgressRecords > 0
       ? Math.round((doneCount / totalProgressRecords) * 100)
       : 0
 
-    const allAttempts = await db.quizAttempt.findMany({
-      select: { score: true },
-    })
     const avgQuizScore = allAttempts.length > 0
-      ? Math.round(
-          (allAttempts.reduce((s, a) => s + a.score, 0) / allAttempts.length) * 10
-        ) / 10
+      ? Math.round((allAttempts.reduce((s, a) => s + a.score, 0) / allAttempts.length) * 10) / 10
       : 0
 
-    const activeThreshold = new Date(Date.now() - 7 * 86400000)
-    const studentIds = await db.user.findMany({
-      where: { role: 'student' },
-      select: { id: true },
-    })
     const studentIdSet = new Set(studentIds.map(s => s.id))
-
-    const activeGroups = await db.telemetryRecord.groupBy({
-      by: ['studentId'],
-      where: { createdAt: { gte: activeThreshold } },
-      _count: true,
-    })
     const activeStudents = activeGroups.filter(g => studentIdSet.has(g.studentId)).length
-
-    const topics = await db.topic.findMany({
-      include: { materials: true, course: true },
-    })
 
     const topicMetrics = await Promise.all(topics.map(async (topic) => {
       const materialIds = topic.materials.map(m => m.id)
@@ -65,14 +55,20 @@ export async function GET() {
       }
     }))
 
-    const recentAttempts = await db.quizAttempt.findMany({
-      take: 5,
-      orderBy: { completedAt: 'desc' },
-      include: {
-        student: { select: { name: true } },
-        quiz: { include: { topic: { select: { name: true } } } },
-      },
-    })
+    const [recentAttempts, attemptsByStudent] = await Promise.all([
+      db.quizAttempt.findMany({
+        take: 5,
+        orderBy: { completedAt: 'desc' },
+        include: {
+          student: { select: { name: true } },
+          quiz: { include: { topic: { select: { name: true } } } },
+        },
+      }),
+      db.quizAttempt.groupBy({
+        by: ['studentId'],
+        _avg: { score: true },
+      }),
+    ])
 
     const recentActivity = recentAttempts.map(a => ({
       studentName: a.student.name,
@@ -81,12 +77,6 @@ export async function GET() {
       score: a.score,
       time: a.completedAt,
     }))
-
-    // Score distribution — one student per range based on their avg score
-    const attemptsByStudent = await db.quizAttempt.groupBy({
-      by: ['studentId'],
-      _avg: { score: true },
-    })
 
     const scoreRanges = [
       { range: '0-20', count: 0 }, { range: '20-40', count: 0 },

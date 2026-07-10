@@ -272,11 +272,10 @@ Rules:
     const quiz = await db.quiz.create({
       data: { topicId: topic.id, title, difficulty: difficulty || 'medium', timeLimit: 600 },
     })
-    const created: any[] = []
-    for (const q of dbQuestions) {
-      const saved = await db.quizQuestion.create({ data: { quizId: quiz.id, ...q } })
-      created.push(saved)
-    }
+    await db.quizQuestion.createMany({
+      data: dbQuestions.map(q => ({ quizId: quiz.id, ...q })),
+    })
+    const created = await db.quizQuestion.findMany({ where: { quizId: quiz.id } })
 
     const questions = toFrontendFormat(created, topicNames[0], difficulty || 'medium')
     return NextResponse.json({ quiz_id: quiz.id, questions, title, usedFallback })
@@ -297,14 +296,13 @@ export async function PUT(request: Request) {
       data: { studentId: sid, quizId: quiz_id, totalQuestions: questions.length, correctCount: 0, score: 0, timeSpent: time_spent || 0 },
     })
 
-    for (const q of questions) {
+    const answerRecords = questions.map(q => {
       const selectedKey = answers[q.id]
       const isCorrect = selectedKey === q.correctKey
       if (isCorrect) correctCount++
-      await db.quizAnswer.create({
-        data: { attemptId: attempt.id, questionId: q.id, selectedKey: selectedKey || '', isCorrect },
-      })
-    }
+      return { attemptId: attempt.id, questionId: q.id, selectedKey: selectedKey || '', isCorrect }
+    })
+    await db.quizAnswer.createMany({ data: answerRecords })
 
     const score = questions.length > 0 ? (correctCount / questions.length) * 100 : 0
     await db.quizAttempt.update({ where: { id: attempt.id }, data: { score, correctCount } })

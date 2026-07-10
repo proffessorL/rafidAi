@@ -70,65 +70,67 @@ export async function GET(request: Request) {
     const studentId = searchParams.get('student_id')
     if (!studentId) return NextResponse.json({ error: 'student_id required' }, { status: 400 })
 
-    for (const def of BADGE_DEFS) {
-      await db.badge.upsert({
+    await Promise.all(BADGE_DEFS.map(def =>
+      db.badge.upsert({
         where: { name: def.name },
         update: { description: def.description, icon: def.icon, category: def.category },
         create: { name: def.name, description: def.description, icon: def.icon, category: def.category, thresholdType: 'custom', thresholdValue: 0 },
       })
-    }
+    ))
 
-    const badges = await db.badge.findMany()
-    const earnedBadges = await db.earnedBadge.findMany({
-      where: { studentId },
-      include: { badge: true },
-    })
+    const [badges, earnedBadges] = await Promise.all([
+      db.badge.findMany(),
+      db.earnedBadge.findMany({ where: { studentId }, include: { badge: true } }),
+    ])
     const earnedMap = new Map(earnedBadges.map((e) => [e.badge.name, e]))
 
-    const results = []
+    const badgeNameToId = new Map(badges.map(b => [b.name, b.id]))
 
-    for (const def of BADGE_DEFS) {
+    const checkResults = await Promise.all(BADGE_DEFS.map(async (def) => {
       const existing = earnedMap.get(def.name)
       const alreadyEarned = !!existing
-
       const result = await def.check(studentId)
-      const earned = alreadyEarned || result.earned
-      const detail = result.detail
+      return { def, alreadyEarned, earned: alreadyEarned || result.earned, detail: result.detail }
+    }))
 
-      const shouldAward = earned && !alreadyEarned
-
-      if (shouldAward) {
-        const badge = badges.find((b) => b.name === def.name)
-        if (badge) {
-          await db.earnedBadge.create({
-            data: { studentId, badgeId: badge.id },
-          })
-
-          notifyBadgeEarned({
-            studentId,
-            badgeName: def.name,
-            badgeIcon: def.icon,
-            description: def.description,
-          }).catch(() => {})
-        }
-      }
-
-      const finalEarned = earned
-        ? await db.earnedBadge.findUnique({
-            where: { studentId_badgeId: { studentId, badgeId: badges.find((b) => b.name === def.name)!.id } },
-          })
-        : null
-
-      results.push({
-        name: def.name,
-        description: def.description,
-        icon: def.icon,
-        category: def.category,
-        earned,
-        earnedAt: finalEarned?.earnedAt?.toISOString() || null,
-        progressDetail: detail,
+    const awardOps = checkResults
+      .filter(r => r.earned && !r.alreadyEarned)
+      .map(r => {
+        const badgeId = badgeNameToId.get(r.def.name)
+        if (!badgeId) return Promise.resolve()
+        return db.earnedBadge.create({ data: { studentId, badgeId } }).then(() => {
+          notifyBadgeEarned({ studentId, badgeName: r.def.name, badgeIcon: r.def.icon, description: r.def.description }).catch(() => {})
+        })
       })
+
+    const earnedLookupOps = checkResults
+      .filter(r => r.earned)
+      .map(r =>
+        db.earnedBadge.findUnique({
+          where: { studentId_badgeId: { studentId, badgeId: badgeNameToId.get(r.def.name)! } },
+        })
+      )
+
+    const [awarded, earnedRecords] = await Promise.all([
+      Promise.all(awardOps),
+      Promise.all(earnedLookupOps),
+    ])
+
+    const earnedAtMap = new Map<string, string | null>()
+    for (let i = 0; i < checkResults.length; i++) {
+      const r = checkResults[i]
+      earnedAtMap.set(r.def.name, earnedRecords[i]?.earnedAt?.toISOString() || null)
     }
+
+    const results = checkResults.map(r => ({
+      name: r.def.name,
+      description: r.def.description,
+      icon: r.def.icon,
+      category: r.def.category,
+      earned: r.earned,
+      earnedAt: earnedAtMap.get(r.def.name),
+      progressDetail: r.detail,
+    }))
 
     return NextResponse.json({ badges: results })
   } catch (error) {

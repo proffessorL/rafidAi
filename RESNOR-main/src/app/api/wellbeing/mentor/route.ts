@@ -17,25 +17,14 @@ export async function POST(request: Request) {
       data: { studentId: sid, role: 'user', content: message },
     })
 
-    const recentMoods = await db.moodEntry.findMany({
-      where: { studentId: sid },
-      orderBy: { createdAt: 'desc' },
-      take: 7,
-    })
-
-    const engagement = await db.engagementScore.findUnique({ where: { studentId: sid } })
-    const streak = await db.streak.findUnique({ where: { studentId: sid } })
-    const quizAttempts = await db.quizAttempt.findMany({
-      where: { studentId: sid },
-      orderBy: { completedAt: 'desc' },
-      take: 5,
-    })
-    const focusSessions = await db.focusSession.findMany({
-      where: { studentId: sid, completed: true },
-      orderBy: { completedAt: 'desc' },
-      take: 10,
-    })
-    const analytics = await db.wellbeingAnalytics.findUnique({ where: { studentId: sid } })
+    const [recentMoods, engagement, streak, quizAttempts, focusSessions, analytics] = await Promise.all([
+      db.moodEntry.findMany({ where: { studentId: sid }, orderBy: { createdAt: 'desc' }, take: 7 }),
+      db.engagementScore.findUnique({ where: { studentId: sid } }),
+      db.streak.findUnique({ where: { studentId: sid } }),
+      db.quizAttempt.findMany({ where: { studentId: sid }, orderBy: { completedAt: 'desc' }, take: 5 }),
+      db.focusSession.findMany({ where: { studentId: sid, completed: true }, orderBy: { completedAt: 'desc' }, take: 10 }),
+      db.wellbeingAnalytics.findUnique({ where: { studentId: sid } }),
+    ])
 
     const moodSummary = recentMoods.length
       ? recentMoods.map(m => `${m.mood}(${m.score}/10)`).join(', ')

@@ -32,10 +32,36 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // 2. Progress
-    const progress = await db.studentProgress.findUnique({
-      where: { studentId },
-    })
+    // 2-7. Run all independent queries in parallel
+    const now = new Date()
+    const startDate = new Date(now)
+    startDate.setDate(startDate.getDate() - 83)
+    startDate.setHours(0, 0, 0, 0)
+
+    const [progress, streak, badges, earnedBadges, quizAttempts, materialProgress, enrollments, telemetry] = await Promise.all([
+      db.studentProgress.findUnique({ where: { studentId } }),
+      db.streak.findUnique({ where: { studentId } }),
+      db.badge.findMany(),
+      db.earnedBadge.findMany({ where: { studentId }, include: { badge: true } }),
+      db.quizAttempt.findMany({
+        where: { studentId },
+        select: { score: true, totalQuestions: true, correctCount: true, completedAt: true },
+        orderBy: { completedAt: 'desc' },
+      }),
+      db.materialProgress.findMany({
+        where: { studentId },
+        include: { material: { select: { id: true, title: true, topic: { select: { id: true, name: true, course: { select: { id: true, name: true, code: true } } } } } } },
+      }),
+      db.enrollment.findMany({
+        where: { studentId },
+        include: { course: { select: { id: true, code: true, name: true } } },
+        orderBy: { course: { code: 'asc' } },
+      }),
+      db.telemetryRecord.findMany({
+        where: { studentId, tabFocused: true, createdAt: { gte: startDate } },
+        select: { activeSeconds: true, createdAt: true },
+      }),
+    ])
 
     const xp = progress?.xp || 0
     const level = progress?.level || findLevel(xp)
@@ -44,18 +70,8 @@ export async function GET(request: Request) {
     const prevLevelXP = 500 * (level - 1) * (level - 2) / 2
     const xpProgress = nextLevelXP > 0 ? Math.round((currentLevelXP / nextLevelXP) * 100) : 0
 
-    // 3. Streak
-    const streak = await db.streak.findUnique({ where: { studentId } })
-
-    // 4. Badges
-    const badges = await db.badge.findMany()
-    const earnedBadges = await db.earnedBadge.findMany({
-      where: { studentId },
-      include: { badge: true },
-    })
     const earnedBadgeIds = new Set(earnedBadges.map(e => e.badgeId))
     const earnedBadgeMap = new Map(earnedBadges.map(e => [e.badgeId, e.earnedAt]))
-
     const allBadges = badges.map(b => ({
       id: b.id,
       name: b.name,
@@ -66,13 +82,6 @@ export async function GET(request: Request) {
       earnedAt: earnedBadgeMap.get(b.id) || null,
     }))
 
-    // 5. Quiz stats (academic overview)
-    const quizAttempts = await db.quizAttempt.findMany({
-      where: { studentId },
-      select: { score: true, totalQuestions: true, correctCount: true, completedAt: true },
-      orderBy: { completedAt: 'desc' },
-    })
-
     const recentQuizzes = quizAttempts.slice(0, 10)
     const totalQuizzes = quizAttempts.length
     const avgScore = recentQuizzes.length > 0
@@ -81,17 +90,6 @@ export async function GET(request: Request) {
     const totalCorrect = recentQuizzes.reduce((sum, q) => sum + q.correctCount, 0)
     const totalQuestions = recentQuizzes.reduce((sum, q) => sum + q.totalQuestions, 0)
 
-    // 6. Material progress (courses)
-    const materialProgress = await db.materialProgress.findMany({
-      where: { studentId },
-      include: {
-        material: {
-          select: { id: true, title: true, topic: { select: { id: true, name: true, course: { select: { id: true, name: true, code: true } } } } },
-        },
-      },
-    })
-
-    // Group by course
     const courseMap = new Map<string, { code: string; name: string; total: number; completed: number }>()
     for (const mp of materialProgress) {
       const course = mp.material.topic.course
@@ -102,34 +100,11 @@ export async function GET(request: Request) {
       entry.total++
       if (mp.completionStatus === 'done') entry.completed++
     }
-
     const courses = Array.from(courseMap.values())
-
-    // 6b. Enrollments (institution courses with attendance)
-    const enrollments = await db.enrollment.findMany({
-      where: { studentId },
-      include: { course: { select: { id: true, code: true, name: true } } },
-      orderBy: { course: { code: 'asc' } },
-    })
 
     const totalAttendance = enrollments.length > 0
       ? Math.round(enrollments.reduce((sum, e) => sum + e.attendance, 0) / enrollments.length)
       : 0
-
-    // 7. Study activity (last 12 weeks = 84 days)
-    const now = new Date()
-    const startDate = new Date(now)
-    startDate.setDate(startDate.getDate() - 83)
-    startDate.setHours(0, 0, 0, 0)
-
-    const telemetry = await db.telemetryRecord.findMany({
-      where: {
-        studentId,
-        tabFocused: true,
-        createdAt: { gte: startDate },
-      },
-      select: { activeSeconds: true, createdAt: true },
-    })
 
     const dayMap = new Map<string, number>()
     for (const t of telemetry) {

@@ -23,7 +23,7 @@ export function useBrowserNotification() {
         try {
           new Notification(n.title, {
             body: n.message,
-            icon: '/favicon.ico',
+            icon: '/favicon.png',
           })
         } catch {
         }

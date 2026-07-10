@@ -30,45 +30,60 @@ export async function GET(request: NextRequest) {
     })
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-    // 2. Student progress (XP / level)
-    const progress = await db.studentProgress.findUnique({ where: { studentId } })
+    // Run all independent DB queries in parallel
+    const userNow = new Date(now.getTime() + tzMs)
+    const streakStart = new Date(Date.UTC(userNow.getUTCFullYear() - 1, userNow.getUTCMonth(), userNow.getUTCDate()) - tzMs)
+    const sevenDaysAgo = new Date(now)
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
-    // 3. Material progress
-    const allProgress = await db.materialProgress.findMany({
-      where: { studentId },
-      include: { material: { include: { topic: true } } },
-    })
+    const [
+      progress,
+      allProgress,
+      attempts,
+      streakRecords,
+      engagement,
+      totalTelemetry,
+      weekTelemetry,
+    ] = await Promise.all([
+      db.studentProgress.findUnique({ where: { studentId } }),
+      db.materialProgress.findMany({
+        where: { studentId },
+        include: { material: { include: { topic: true } } },
+      }),
+      db.quizAttempt.findMany({
+        where: { studentId },
+        include: { quiz: { include: { topic: true } } },
+        orderBy: { completedAt: 'desc' },
+      }),
+      db.telemetryRecord.findMany({
+        where: { studentId, tabFocused: true, pageId: { in: STUDY_PAGE_IDS }, createdAt: { gte: streakStart } },
+        select: { activeSeconds: true, createdAt: true },
+      }),
+      db.engagementScore.findUnique({ where: { studentId } }),
+      db.telemetryRecord.aggregate({
+        where: { studentId, pageId: { in: STUDY_PAGE_IDS } },
+        _sum: { activeSeconds: true },
+      }),
+      db.telemetryRecord.findMany({
+        where: { studentId, pageId: { in: STUDY_PAGE_IDS }, createdAt: { gte: sevenDaysAgo } },
+        select: { activeSeconds: true, createdAt: true },
+      }),
+    ])
+
+    // --- Post-processing (all data available now) ---
+
     const total = allProgress.length
     const done = allProgress.filter(p => p.completionStatus === 'done').length
     const inProgress = allProgress.filter(p => p.completionStatus === 'in_progress').length
     const pending = total - done - inProgress
 
-    // 4. Quiz attempts
-    const attempts = await db.quizAttempt.findMany({
-      where: { studentId },
-      include: { quiz: { include: { topic: true } } },
-      orderBy: { completedAt: 'desc' },
-    })
     const recentAttempts = attempts.slice(0, 10)
     const avgScore = recentAttempts.length > 0
       ? Math.round(recentAttempts.reduce((sum, a) => sum + (a.correctCount / a.totalQuestions) * 100, 0) / recentAttempts.length * 10) / 10
       : 0
     const highScoreQuizCount = attempts.filter(a => a.totalQuestions > 0 && (a.correctCount / a.totalQuestions) >= 0.8).length
 
-    // 5. Streak (computed on-the-fly from telemetry, same as gamification calendar)
-    const userNow = new Date(now.getTime() + tzMs)
-    const streakStart = new Date(Date.UTC(userNow.getUTCFullYear() - 1, userNow.getUTCMonth(), userNow.getUTCDate()) - tzMs)
-
-    const streakRecords = await db.telemetryRecord.findMany({
-      where: {
-        studentId,
-        tabFocused: true,
-        pageId: { in: STUDY_PAGE_IDS },
-        createdAt: { gte: streakStart },
-      },
-      select: { activeSeconds: true, createdAt: true },
-    })
-
+    // Streak computation
     const streakDayMap = new Map<string, number>()
     for (const r of streakRecords) {
       const dateKey = tzDateKey(r.createdAt, tzMs)
@@ -104,17 +119,9 @@ export async function GET(request: NextRequest) {
 
     const totalActiveDays = studied.filter(Boolean).length
 
-    // 6. Engagement
-    const engagement = await db.engagementScore.findUnique({ where: { studentId } })
-
-    // 7. Total study time (seconds -> minutes) — from telemetry (study pages only)
-    const totalTelemetry = await db.telemetryRecord.aggregate({
-      where: { studentId, pageId: { in: STUDY_PAGE_IDS } },
-      _sum: { activeSeconds: true },
-    })
     const totalTimeMinutes = Math.floor((totalTelemetry._sum.activeSeconds || 0) / 60)
 
-    // 8. Topic performance over time (weekly bins)
+    // Topic performance over time
     const topicScoresRaw: Record<string, { score: number; date: string; correctCount: number; totalQuestions: number; quizTitle: string }[]> = {}
     for (const a of attempts) {
       const topicName = a.quiz?.topic?.name || 'Unknown'
@@ -128,21 +135,15 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // 9. Weekly activity (last 7 days) — from telemetry (study pages only)
-    const sevenDaysAgo = new Date(now)
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-    const weekTelemetry = await db.telemetryRecord.findMany({
-      where: { studentId, pageId: { in: STUDY_PAGE_IDS }, createdAt: { gte: sevenDaysAgo } },
-      select: { activeSeconds: true, createdAt: true },
-    })
+    // Weekly activity
     const weeklyActivity: { day: string; hours: number }[] = []
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     for (let i = 6; i >= 0; i--) {
-      const d = new Date(now)
-      d.setDate(d.getDate() - i)
-      const dayStart = new Date(d)
+      const day = new Date(now)
+      day.setDate(day.getDate() - i)
+      const dayStart = new Date(day)
       dayStart.setHours(0, 0, 0, 0)
-      const dayEnd = new Date(d)
+      const dayEnd = new Date(day)
       dayEnd.setHours(23, 59, 59, 999)
       const dayMs = weekTelemetry
         .filter(t => {
@@ -150,10 +151,10 @@ export async function GET(request: NextRequest) {
           return ca >= dayStart && ca <= dayEnd
         })
         .reduce((sum, t) => sum + t.activeSeconds, 0)
-      weeklyActivity.push({ day: dayNames[d.getDay()], hours: Math.round(dayMs / 3600 * 10) / 10 })
+      weeklyActivity.push({ day: dayNames[day.getDay()], hours: Math.round(dayMs / 3600 * 10) / 10 })
     }
 
-    // 10. Materials completed today (for welcome banner)
+    // Materials completed today
     const todayStart = new Date(now)
     todayStart.setHours(0, 0, 0, 0)
     const todayEnd = new Date(now)

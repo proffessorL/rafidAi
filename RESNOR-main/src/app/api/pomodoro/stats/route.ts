@@ -33,19 +33,31 @@ export async function GET(request: Request) {
       .reduce((sum, s) => sum + s.actualSeconds, 0)
     const totalFocusMinutes = Math.round(totalFocusSeconds / 60)
 
-    // Weekly chart data (last 7 days)
+    // Weekly chart data (last 7 days) — single query instead of 7
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
+    sevenDaysAgo.setHours(0, 0, 0, 0)
+
+    const weekSessions = await db.pomodoroSession.findMany({
+      where: { studentId, type: 'focus', completedAt: { gte: sevenDaysAgo } },
+      select: { actualSeconds: true, completedAt: true },
+    })
+
     const weeklyData: { day: string; minutes: number }[] = []
     for (let i = 6; i >= 0; i--) {
       const day = new Date()
       day.setDate(day.getDate() - i)
-      day.setHours(0, 0, 0, 0)
+      const dayStart = new Date(day)
+      dayStart.setHours(0, 0, 0, 0)
       const dayEnd = new Date(day)
       dayEnd.setHours(23, 59, 59, 999)
 
-      const daySessions = await db.pomodoroSession.findMany({
-        where: { studentId, type: 'focus', completedAt: { gte: day, lte: dayEnd } },
-      })
-      const dayMinutes = daySessions.reduce((sum, s) => sum + s.actualSeconds, 0) / 60
+      const dayMinutes = weekSessions
+        .filter(s => {
+          const ca = new Date(s.completedAt)
+          return ca >= dayStart && ca <= dayEnd
+        })
+        .reduce((sum, s) => sum + s.actualSeconds, 0) / 60
 
       const label = i === 0 ? 'Today' : i === 1 ? 'Yesterday' : day.toLocaleDateString('en-US', { weekday: 'short' })
       weeklyData.push({ day: label, minutes: Math.round(dayMinutes) })

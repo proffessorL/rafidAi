@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   title: "RESNOR — AI-Powered Student Growth Platform",
   description: "RESNOR helps students at DIU track their academic progress with AI-driven insights, smart tutoring, gamified learning, and predictive analytics.",
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/favicon.png",
   },
 };
 
